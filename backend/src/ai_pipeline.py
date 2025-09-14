@@ -274,6 +274,45 @@ def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_track
             logger.log_error("api_call", "GEMINI_API_ERROR", str(e))
         raise
 
+def get_style_instructions(style_variation):
+    """Get platform-specific writing instructions"""
+    style_map = {
+        "amazon": {
+            "objective": "Maximize conversions and visibility via A9 algorithm",
+            "format": "Keyword-heavy, bullet-point list for key features and specifications",
+            "tone": "Professional, direct, and benefit-oriented",
+            "structure": "Start with a short, engaging paragraph (approx. 2-3 lines) incorporating primary keywords. Follow with a detailed bulleted list (5-7 points) focusing on specs, features, and user benefits. Conclude with any necessary warranty/guarantee information."
+        },
+        "etsy": {
+            "objective": "Connect emotionally and highlight craftsmanship",
+            "format": "Narrative, storytelling prose",
+            "tone": "Warm, personal, authentic, and inspired",
+            "structure": "Begin with a story behind the product, the maker's inspiration, or the process of creation. Weave in keywords naturally. Describe the sensory details (e.g., 'feel,' 'look,' 'scent'). Mention the care and love put into making it. Include details about materials and their origin if possible."
+        },
+        "shopify": {
+            "objective": "Build brand identity and engage customers",
+            "format": "Flexible, blending storytelling with modern SEO and branding",
+            "tone": "Confident, aspirational, and clean",
+            "structure": "A cohesive brand story. Can use a short headline. Combine persuasive, benefit-driven copy with natural keyword integration. Structure can be a few medium-length paragraphs or a mix of short paragraphs and bullet points. Focus on the problem the product solves and the lifestyle it enables."
+        },
+        "ebay": {
+            "objective": "Provide clear, concise information for a comparison-shopping audience",
+            "format": "Strict, dense, and specification-focused",
+            "tone": "Factual, straightforward, and unbiased",
+            "structure": "Prioritize completeness and clarity. Use a very short introductory sentence. The body must be a dense, detailed list of specifications, condition (if used), dimensions, included components, and compatibility. Keywords are critical. Avoid fluff and marketing hyperbole."
+        }
+    }
+    
+    style = style_map.get(style_variation, style_map["amazon"])
+    return f"""
+**{style_variation.upper()} STYLE REQUIREMENTS:**
+- **Objective:** {style['objective']}
+- **Format:** {style['format']}
+- **Tone:** {style['tone']}
+- **Structure:** {style['structure']}
+
+**CRITICAL:** Write the product description in the {style_variation.upper()} style, strictly adhering to the defined rules for that format."""
+
 def build_gemini_prompt(row):
     """Build a Gemini-optimized prompt with safety considerations"""
     features_list = row.get("features", "")
@@ -286,9 +325,14 @@ def build_gemini_prompt(row):
         "professional": "business professionals and working adults",
         "luxury": "discerning customers who value premium quality",
         "sporty": "active individuals and fitness enthusiasts",
-        "modern": "tech-savvy consumers who appreciate contemporary design"
+        "modern": "tech-savvy consumers who appreciate contemporary design",
+        "playful": "fun-loving consumers who enjoy vibrant and engaging products"
     }
     audience = audience_map.get(tone, "general consumers")
+    
+    # Get style variation and define style-specific instructions
+    style_variation = row.get("style_variation", "amazon").lower()
+    style_instructions = get_style_instructions(style_variation)
     
     prompt = f"""You are an expert e-commerce copywriter. Your task is to write a compelling, persuasive, and benefit-driven product description.
 
@@ -298,7 +342,9 @@ def build_gemini_prompt(row):
 * **Target Audience:** {audience}
 * **Primary Keyword:** {row.get("primary_keyword", "")}
 
-**Instructions:**
+{style_instructions}
+
+**General Instructions:**
 - Write in a tone that would appeal directly to the specified target audience.
 - Focus on the **benefits** of the features, not just the features themselves. Explain how the product improves the customer's life.
 - Include the primary keyword naturally 1-2 times in the description.

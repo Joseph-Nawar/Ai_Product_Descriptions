@@ -234,3 +234,9 @@ For issues and questions:
 ---
 
 **⚠️ Important**: Always test with `--dry-run` before processing large datasets. Monitor costs and set appropriate limits in your `.env` file.
+
+
+**Running:
+.\start_backend.ps1
+
+.\start_frontend.ps1
