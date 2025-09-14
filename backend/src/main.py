@@ -159,10 +159,22 @@ async def generate_description(
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 @app.post("/api/generate-batch")
-async def generate_batch_json(products: List[Dict[str, Any]]):
-    """Generate descriptions for multiple products from JSON array"""
+async def generate_batch_json(request: Dict[str, Any]):
+    """Generate descriptions for multiple products from batch request"""
     if model is None:
         raise HTTPException(status_code=500, detail="AI model not initialized")
+    
+    # Handle both old format (array of products) and new format (batch request)
+    if isinstance(request, list):
+        # Legacy format - array of products
+        products = request
+        batch_tone = "professional"
+        batch_style = "amazon"
+    else:
+        # New format - batch request with tone and style
+        products = request.get("products", [])
+        batch_tone = request.get("batchTone", "professional")
+        batch_style = request.get("batchStyle", "amazon")
     
     try:
         results = []
@@ -174,12 +186,23 @@ async def generate_batch_json(products: List[Dict[str, Any]]):
                 row_dict = {
                     "id": product.get("id", f"product_{idx}"),
                     "sku": product.get("sku", ""),
-                    "title": product.get("title", ""),
+                    "title": product.get("product_name", ""),  # Frontend sends product_name
                     "category": product.get("category", "generic"),
                     "features": product.get("features", ""),
-                    "primary_keyword": product.get("primary_keyword", ""),
-                    "tone": product.get("tone", "professional")
+                    "primary_keyword": product.get("keywords", ""),  # Frontend sends keywords
+                    "audience": product.get("audience", "general consumers"),  # Frontend sends audience
+                    "tone": batch_tone,  # Use batch-level tone
+                    "style_variation": batch_style  # Use batch-level style
                 }
+                
+                # Basic validation for required fields
+                if not row_dict["title"] or not row_dict["features"]:
+                    errors.append({
+                        "row": idx,
+                        "id": row_dict.get("id", ""),
+                        "error": "Missing required fields: product_name and features are required"
+                    })
+                    continue
                 
                 # Validate input
                 is_valid, validation_msg = safety_filter.validate_input(
@@ -208,9 +231,14 @@ async def generate_batch_json(products: List[Dict[str, Any]]):
                 
                 result = {
                     "id": row_dict["id"],
-                    "sku": row_dict["sku"],
-                    "title": parsed.get("title", row_dict["title"]),
+                    "product_name": parsed.get("title", row_dict["title"]),
+                    "category": row_dict["category"],
+                    "audience": row_dict.get("audience", "general consumers"),
                     "description": parsed.get("description", ""),
+                    "keywords": row_dict.get("primary_keyword", ""),
+                    "features": row_dict["features"],  # Include original features
+                    "tone": batch_tone,  # Include batch-level tone
+                    "style_variation": batch_style,  # Include batch-level style variation
                     "bullets": parsed.get("bullets", []),
                     "meta": parsed.get("meta", ""),
                     "seo_score": seo_evaluate(parsed.get("description", ""), row_dict.get("primary_keyword", "")),
@@ -291,9 +319,14 @@ async def generate_batch(file: UploadFile = File(...)):
                 
                 result = {
                     "id": row_dict["id"],
-                    "sku": row_dict["sku"],
-                    "title": parsed.get("title", row_dict["title"]),
+                    "product_name": parsed.get("title", row_dict["title"]),
+                    "category": row_dict["category"],
+                    "audience": row_dict.get("audience", "general consumers"),
                     "description": parsed.get("description", ""),
+                    "keywords": row_dict.get("primary_keyword", ""),
+                    "features": row_dict["features"],  # Include original features
+                    "tone": batch_tone,  # Include batch-level tone
+                    "style_variation": batch_style,  # Include batch-level style variation
                     "bullets": parsed.get("bullets", []),
                     "meta": parsed.get("meta", ""),
                     "seo_score": seo_evaluate(parsed.get("description", ""), row_dict.get("primary_keyword", "")),
@@ -358,6 +391,81 @@ async def download_batch(batch_id: str):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=batch_{batch_id}.csv"}
     )
+
+@app.post("/api/regenerate")
+async def regenerate_description(item: Dict[str, Any]):
+    """Regenerate a single product description"""
+    if model is None:
+        raise HTTPException(status_code=500, detail="AI model not initialized")
+    
+    if safety_filter is None or cost_tracker is None:
+        raise HTTPException(status_code=500, detail="AI components not initialized")
+    
+    try:
+        # Convert the item to row dict format
+        row_dict = {
+            "id": item.get("id", timestamp()),
+            "sku": item.get("sku", ""),
+            "title": item.get("product_name", ""),
+            "category": item.get("category", "generic"),
+            "features": item.get("features", ""),
+            "primary_keyword": item.get("keywords", ""),
+            "audience": item.get("audience", "general consumers"),
+            "tone": item.get("tone", "professional"),
+            "style_variation": item.get("style_variation", "amazon")
+        }
+        
+        # Basic validation
+        if not row_dict["title"] or not row_dict["features"]:
+            raise HTTPException(status_code=400, detail="Missing required fields: product_name and features are required")
+        
+        # Validate input
+        is_valid, validation_msg = safety_filter.validate_input(
+            row_dict["title"] + " " + row_dict["features"]
+        )
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Invalid input: {validation_msg}")
+        
+        # Build prompt and generate
+        prompt = build_gemini_prompt(row_dict)
+        ai_text, tokens_used, response_time = call_gemini_generate(
+            model=model,
+            prompt=prompt,
+            temperature=0.2,
+            cost_tracker=cost_tracker
+        )
+        
+        # Parse and process
+        ai_text = safety_filter.sanitize_output(ai_text)
+        parsed = safe_extract_json(ai_text)
+        
+        result = {
+            "id": row_dict["id"],
+            "product_name": parsed.get("title", row_dict["title"]),
+            "category": row_dict["category"],
+            "audience": row_dict["audience"],
+            "description": parsed.get("description", ""),
+            "keywords": row_dict["primary_keyword"],
+            "features": row_dict["features"],  # Include original features
+            "tone": row_dict["tone"],  # Include original tone
+            "style_variation": row_dict["style_variation"],  # Include original style variation
+            "bullets": parsed.get("bullets", []),
+            "meta": parsed.get("meta", ""),
+            "seo_score": seo_evaluate(parsed.get("description", ""), row_dict["primary_keyword"]),
+            "tokens_used": tokens_used,
+            "response_time": response_time,
+            "regenerating": False
+        }
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error regenerating description: {str(e)}")
+        logging.error(f"Item data: {item}")
+        logging.error(f"Model status: {model is not None}")
+        logging.error(f"Safety filter status: {safety_filter is not None}")
+        logging.error(f"Cost tracker status: {cost_tracker is not None}")
+        raise HTTPException(status_code=500, detail=f"Regeneration failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,34 +1,46 @@
+import React from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import Home from "./pages/Home";
 import Results from "./pages/Results";
 
 export default function App() {
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 text-gray-900">
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm sticky top-0 z-50">
-        <div className="w-full px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">AI</span>
+    <>
+      <div className="aurora-background"></div>
+      <div className="relative min-h-dvh z-10">
+        <header className="sticky top-4 z-50 mx-4 md:mx-8">
+            <div className="bg-glass-bg backdrop-blur-lg border border-glass-border rounded-2xl shadow-2xl shadow-black/20">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
+                <div className="flex items-center justify-between">
+                  <Link to="/" className="flex items-center space-x-3 group">
+                    <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-white font-extrabold text-lg">A</span>
+                    </div>
+                    <span className="font-bold text-2xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
+                      Describer
+                    </span>
+                  </Link>
+                  <nav className="text-sm font-medium text-gray-300">
+                    <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors duration-200">
+                      Documentation
+                    </a>
+                  </nav>
+                </div>
+              </div>
             </div>
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Describer</span>
-          </Link>
-          <nav className="text-sm text-gray-600">
-            <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors duration-200">Docs</a>
-          </nav>
-        </div>
-      </header>
-      <main className="relative">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/results" element={<Results />} />
-        </Routes>
-      </main>
-      <footer className="bg-white/60 backdrop-blur-sm border-t border-gray-200 mt-12">
-        <div className="mx-auto max-w-7xl p-4 text-xs text-gray-500 text-center">
-          &copy; {new Date().getFullYear()} AI Describer - Transform your e-commerce with AI-powered descriptions
-        </div>
-      </footer>
-    </div>
+        </header>
+        <main className="relative mt-8">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/results" element={<Results />} />
+          </Routes>
+        </main>
+        <footer className="mt-24 pb-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-sm text-center text-gray-400">
+            &copy; {new Date().getFullYear()} AI Describer — The Future of E-commerce Content.
+          </div>
+        </footer>
+      </div>
+    </>
   );
 }

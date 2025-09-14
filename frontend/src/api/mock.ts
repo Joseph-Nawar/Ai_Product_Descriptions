@@ -12,6 +12,9 @@ export async function mockGenerate(inputs: ProductInput[]): Promise<BatchRespons
     category: p.category,
     audience: p.audience,
     keywords: p.keywords,
+    features: p.features,
+    tone: "professional", // Default for mock
+    style_variation: "amazon", // Default for mock
     description: `Introducing ${p.product_name}: a ${p.category} perfect for ${p.audience}. Key features: ${p.features}. SEO-optimized and ready to boost your store.`
   }));
   return { batch_id, items };
