@@ -11,7 +11,7 @@ export async function generateDescriptions(payload: ProductInput[] | FormData): 
   }
   // Accept both JSON array and CSV form-data (backend should handle both)
   const isFormData = typeof FormData !== "undefined" && payload instanceof FormData;
-  const res = await api.post<BatchResponse>("/generate", payload, {
+  const res = await api.post<BatchResponse>("/api/generate-batch", payload, {
     headers: isFormData ? { "Content-Type": "multipart/form-data" } : { "Content-Type": "application/json" }
   });
   return res.data;

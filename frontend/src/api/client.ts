@@ -3,7 +3,7 @@ function trimTrailingSlash(s: string) { return s.endsWith("/") ? s.slice(0, -1) 
 const env = (import.meta as any).env || {};
 const base = env.VITE_API_BASE_URL || env.VITE_API_BASE || "http://localhost:8000";
 export const API_BASE = trimTrailingSlash(String(base));
-export const api = axios.create({ baseURL: API_BASE, timeout: 30000, headers: { "Content-Type": "application/json" } });
+export const api = axios.create({ baseURL: API_BASE, timeout: 300000, headers: { "Content-Type": "application/json" } });
 
 // Enhanced error handling for rate limits
 export function handleApiError(error: unknown): string {
