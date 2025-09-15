@@ -1,0 +1,105 @@
+{
+  "pageTitles": {
+    "dashboard": "Where Words Become Revenue",
+    "results": "Your TextGenie Descriptions are Ready"
+  },
+  "navigation": {
+    "documentation": "Documentation",
+    "newCatalog": "New Catalog"
+  },
+  "hero": {
+    "subtitle": "Transform your product specs into persuasive copy that converts visitors into customers. Let TextGenie grant your ecommerce wishes with powerful, SEO-rich descriptions."
+  },
+  "sections": {
+    "styleConfiguration": {
+      "title": "Choose Your Genie's Magic Style",
+      "description": "Configure the magical voice and platform style that TextGenie will use for all your products.",
+      "brandVoice": "Brand Voice",
+      "brandVoiceDescription": "The personality and voice for all your product descriptions",
+      "platformStyle": "Platform Style",
+      "platformStyleDescription": "Platform-specific writing style for all descriptions"
+    },
+    "getStarted": {
+      "title": "Get Started",
+      "chooseVoice": "Choose Your Genie's Voice",
+      "description": "Select a magical voice and platform style to see how TextGenie transforms your product descriptions. Add products below to grant your ecommerce wishes!",
+      "readyToGrant": "Ready to grant your wishes?",
+      "addProducts": "Add products manually below or upload a CSV file to let TextGenie work its magic!"
+    },
+    "productWishlist": {
+      "title": "Your Product Wishlist",
+      "empty": "Your wishlist is empty",
+      "emptyDescription": "Add products above to make your wishes come true.",
+      "clearWishlist": "Clear Wishlist"
+    },
+    "inputMethods": {
+      "uploadMore": "Upload More Products",
+      "uploadMoreDescription": "Add more products to your existing catalog.",
+      "addMore": "Add More Products Manually",
+      "addMoreDescription": "Add individual products to your existing batch."
+    }
+  },
+  "choiceCards": {
+    "title": "Add Products to Your Wishlist",
+    "subtitle": "Choose how you'd like to add products for TextGenie to work its magic",
+    "csvUpload": {
+      "title": "Upload Your Wishlist",
+      "description": "Perfect for scaling your catalog quickly. Upload your product data and let TextGenie grant all your wishes at once.",
+      "targetAudience": "Target Audience",
+      "audiencePlaceholder": "e.g., homeowners, new parents, gamers",
+      "button": "Upload Wishlist",
+      "smartProcessing": {
+        "title": "Smart CSV Processing:",
+        "description": "Automatically detects product names and categories from your CSV headers",
+        "maxSize": "Max size: 10MB"
+      }
+    },
+    "manualEntry": {
+      "title": "Add Individual Wishes",
+      "description": "Ideal for testing different magical styles and adding products one by one with precision.",
+      "button": "Make a Wish",
+      "perfectFor": {
+        "title": "Perfect for:",
+        "testing": "Testing different magical voices",
+        "adding": "Adding 1-5 products",
+        "precision": "Precision wish-making"
+      }
+    },
+    "helpText": "You can always add more products later using the other method"
+  },
+  "forms": {
+    "languageSelector": {
+      "label": "Output Language",
+      "description": "Select the language for generated descriptions"
+    },
+    "batchLanguageSelector": {
+      "label": "Generate descriptions in:",
+      "description": "Language for all descriptions in this batch"
+    }
+  },
+  "buttons": {
+    "generate": "Generate Descriptions",
+    "generating": "Generating...",
+    "addProducts": "Add Products to Generate"
+  },
+  "results": {
+    "descriptionsGenerated": "descriptions generated. Edit below and export your results.",
+    "exportResults": "Export Results"
+  },
+  "footer": {
+    "copyright": "TextGenie — Where Words Become Revenue."
+  },
+  "modals": {
+    "addProduct": {
+      "title": "Add Product Manually"
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "ja": "Japanese",
+    "zh": "Chinese"
+  }
+}

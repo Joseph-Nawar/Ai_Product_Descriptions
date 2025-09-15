@@ -1,0 +1,105 @@
+{
+  "pageTitles": {
+    "dashboard": "言葉が収益になる場所",
+    "results": "TextGenieの説明が準備完了"
+  },
+  "navigation": {
+    "documentation": "ドキュメント",
+    "newCatalog": "新しいカタログ"
+  },
+  "hero": {
+    "subtitle": "製品仕様を説得力のあるコピーに変換し、訪問者を顧客に変えます。TextGenieに強力でSEOに富んだ説明でeコマースの願いを叶えさせましょう。"
+  },
+  "sections": {
+    "styleConfiguration": {
+      "title": "ジーニーの魔法のスタイルを選択",
+      "description": "TextGenieがすべての製品に使用する魔法の声とプラットフォームスタイルを設定します。",
+      "brandVoice": "ブランドボイス",
+      "brandVoiceDescription": "すべての製品説明の個性と声",
+      "platformStyle": "プラットフォームスタイル",
+      "platformStyleDescription": "すべての説明のプラットフォーム固有の書き方スタイル"
+    },
+    "getStarted": {
+      "title": "始める",
+      "chooseVoice": "ジーニーの声を選択",
+      "description": "魔法の声とプラットフォームスタイルを選択して、TextGenieが製品説明をどのように変換するかを確認してください。下に製品を追加してeコマースの願いを叶えましょう！",
+      "readyToGrant": "願いを叶える準備はできましたか？",
+      "addProducts": "下に手動で製品を追加するか、CSVファイルをアップロードしてTextGenieに魔法をかけさせましょう！"
+    },
+    "productWishlist": {
+      "title": "あなたの製品ウィッシュリスト",
+      "empty": "ウィッシュリストが空です",
+      "emptyDescription": "上に製品を追加して願いを叶えましょう。",
+      "clearWishlist": "ウィッシュリストをクリア"
+    },
+    "inputMethods": {
+      "uploadMore": "より多くの製品をアップロード",
+      "uploadMoreDescription": "既存のカタログにより多くの製品を追加します。",
+      "addMore": "より多くの製品を手動で追加",
+      "addMoreDescription": "既存のバッチに個別の製品を追加します。"
+    }
+  },
+  "choiceCards": {
+    "title": "ウィッシュリストに製品を追加",
+    "subtitle": "TextGenieが魔法をかけるために製品を追加する方法を選択してください",
+    "csvUpload": {
+      "title": "ウィッシュリストをアップロード",
+      "description": "カタログを迅速にスケールアップするのに最適です。製品データをアップロードして、TextGenieにすべての願いを一度に叶えさせましょう。",
+      "targetAudience": "ターゲットオーディエンス",
+      "audiencePlaceholder": "例：住宅所有者、新しい親、ゲーマー",
+      "button": "ウィッシュリストをアップロード",
+      "smartProcessing": {
+        "title": "スマートCSV処理：",
+        "description": "CSVヘッダーから製品名とカテゴリを自動検出",
+        "maxSize": "最大サイズ：10MB"
+      }
+    },
+    "manualEntry": {
+      "title": "個別の願いを追加",
+      "description": "異なる魔法のスタイルをテストし、製品を一つずつ精密に追加するのに理想的です。",
+      "button": "願いをかける",
+      "perfectFor": {
+        "title": "最適な用途：",
+        "testing": "異なる魔法の声をテスト",
+        "adding": "1-5個の製品を追加",
+        "precision": "精密な願い作り"
+      }
+    },
+    "helpText": "他の方法を使用していつでも後でより多くの製品を追加できます"
+  },
+  "forms": {
+    "languageSelector": {
+      "label": "出力言語",
+      "description": "生成された説明の言語を選択"
+    },
+    "batchLanguageSelector": {
+      "label": "説明を生成する言語：",
+      "description": "このバッチ内のすべての説明の言語"
+    }
+  },
+  "buttons": {
+    "generate": "説明を生成",
+    "generating": "生成中...",
+    "addProducts": "生成する製品を追加"
+  },
+  "results": {
+    "descriptionsGenerated": "説明が生成されました。下で編集して結果をエクスポートしてください。",
+    "exportResults": "結果をエクスポート"
+  },
+  "footer": {
+    "copyright": "TextGenie — 言葉が収益になる場所。"
+  },
+  "modals": {
+    "addProduct": {
+      "title": "製品を手動で追加"
+    }
+  },
+  "languages": {
+    "en": "英語",
+    "es": "スペイン語",
+    "fr": "フランス語",
+    "de": "ドイツ語",
+    "ja": "日本語",
+    "zh": "中国語"
+  }
+}

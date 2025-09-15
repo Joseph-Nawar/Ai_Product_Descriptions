@@ -10,6 +10,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export default function FileUpload({ onParsed }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [audience, setAudience] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   async function handleFile(f: File) {
@@ -27,8 +28,18 @@ export default function FileUpload({ onParsed }: Props) {
         throw new Error('Please select a CSV file.');
       }
       
+      // Check if audience is provided
+      if (!audience.trim()) {
+        throw new Error('Please provide a target audience.');
+      }
+      
       const rows = await parseProductsCsv(f);
-      onParsed(rows);
+      // Apply the target audience to all products
+      const rowsWithAudience = rows.map(row => ({
+        ...row,
+        audience: audience.trim()
+      }));
+      onParsed(rowsWithAudience);
     } catch (e: any) {
       setError(e.message || 'Failed to parse CSV file.');
     } finally {
@@ -39,23 +50,46 @@ export default function FileUpload({ onParsed }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 bg-gray-50/50 hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200">
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv"
-          onChange={(e) => e.target.files && handleFile(e.target.files[0])}
-          className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-blue-600 file:to-purple-600 file:px-6 file:py-3 file:text-white file:font-semibold hover:file:from-blue-700 hover:file:to-purple-700 file:transition-all file:duration-200 file:cursor-pointer"
-        />
-        <div className="text-center mt-4">
-          <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          <p className="text-sm text-gray-500">Or click "Choose File" button above</p>
+      <div className="space-y-3">
+        <div>
+          <label htmlFor="audience" className="block text-sm font-medium text-gray-700 mb-1">
+            Target Audience *
+          </label>
+          <input
+            id="audience"
+            type="text"
+            value={audience}
+            onChange={(e) => setAudience(e.target.value)}
+            placeholder="e.g., homeowners, new parents, gamers"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            required
+          />
+        </div>
+        
+        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 bg-gray-50/50 hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200">
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                handleFile(file);
+              }
+            }}
+            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-blue-600 file:to-purple-600 file:px-6 file:py-3 file:text-white file:font-semibold hover:file:from-blue-700 hover:file:to-purple-700 file:transition-all file:duration-200 file:cursor-pointer"
+          />
+          <div className="text-center mt-4">
+            <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p className="text-sm text-gray-500">Or click "Choose File" button above</p>
+          </div>
         </div>
       </div>
+      
       <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded-lg">
-        <strong>Expected headers:</strong> product_name, category, features, audience, (keywords optional)<br/>
+        <strong>Smart CSV Processing:</strong> Automatically detects product names and categories from your CSV headers.<br/>
         <strong>Max size:</strong> 10MB
       </div>
       {error && <Banner type="error">{error}</Banner>}

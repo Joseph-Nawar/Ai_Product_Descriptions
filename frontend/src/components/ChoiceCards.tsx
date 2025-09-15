@@ -1,9 +1,10 @@
 import React, { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { parseProductsCsv } from '../utils/csv';
 import { ProductInput } from '../types';
 import { Button } from './UI';
 
-type Props = { 
+type Props = {
   onParsed: (rows: ProductInput[]) => void;
   onManualAdd: () => void;
 };
@@ -11,7 +12,9 @@ type Props = {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [audience, setAudience] = React.useState("");
 
   async function handleFile(f: File) {
     try {
@@ -25,8 +28,18 @@ export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
         throw new Error('Please select a CSV file.');
       }
       
+      // Check if audience is provided
+      if (!audience.trim()) {
+        throw new Error('Please provide a target audience.');
+      }
+      
       const rows = await parseProductsCsv(f);
-      onParsed(rows);
+      // Apply the target audience to all products
+      const rowsWithAudience = rows.map(row => ({
+        ...row,
+        audience: audience.trim()
+      }));
+      onParsed(rowsWithAudience);
     } catch (e: any) {
       alert(e.message || 'Failed to parse CSV file.');
     } finally {
@@ -38,8 +51,8 @@ export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-100 mb-2">Add Products to Your Batch</h2>
-        <p className="text-gray-400">Choose how you'd like to add products to get started</p>
+        <h2 className="text-2xl font-bold text-gray-100 mb-2">{t('choiceCards.title')}</h2>
+        <p className="text-gray-400">{t('choiceCards.subtitle')}</p>
       </div>
 
       {/* Choice Cards */}
@@ -53,30 +66,50 @@ export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
               </svg>
             </div>
             
-            <h3 className="text-xl font-semibold text-gray-100 mb-2">Upload a CSV File</h3>
+            <h3 className="text-xl font-semibold text-gray-100 mb-2">{t('choiceCards.csvUpload.title')}</h3>
             <p className="text-gray-400 mb-6">
-              Perfect for adding many products at once. Download our template to get started.
+              {t('choiceCards.csvUpload.description')}
             </p>
             
             <div className="space-y-3">
+              <div>
+                <label htmlFor="audience" className="block text-sm font-medium text-gray-300 mb-1">
+                  {t('choiceCards.csvUpload.targetAudience')} *
+                </label>
+                <input
+                  id="audience"
+                  type="text"
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value)}
+                  placeholder={t('choiceCards.csvUpload.audiencePlaceholder')}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
               <input
                 ref={inputRef}
                 type="file"
                 accept=".csv"
-                onChange={(e) => e.target.files && handleFile(e.target.files[0])}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleFile(file);
+                  }
+                }}
                 className="hidden"
               />
               <Button 
                 onClick={() => inputRef.current?.click()} 
                 className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
               >
-                Upload CSV
+                {t('choiceCards.csvUpload.button')}
               </Button>
               
               <div className="text-xs text-gray-500 bg-gray-900/50 rounded-lg p-3">
-                <div className="font-medium text-gray-300 mb-1">Expected headers:</div>
-                <div>product_name, category, features, audience, (keywords optional)</div>
-                <div className="mt-1 text-gray-400">Max size: 10MB</div>
+                <div className="font-medium text-gray-300 mb-1">{t('choiceCards.csvUpload.smartProcessing.title')}</div>
+                <div>{t('choiceCards.csvUpload.smartProcessing.description')}</div>
+                <div className="mt-1 text-gray-400">{t('choiceCards.csvUpload.smartProcessing.maxSize')}</div>
               </div>
             </div>
           </div>
@@ -91,9 +124,9 @@ export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
               </svg>
             </div>
             
-            <h3 className="text-xl font-semibold text-gray-100 mb-2">Add Product Manually</h3>
+            <h3 className="text-xl font-semibold text-gray-100 mb-2">{t('choiceCards.manualEntry.title')}</h3>
             <p className="text-gray-400 mb-6">
-              Ideal for adding a few products quickly and testing different styles.
+              {t('choiceCards.manualEntry.description')}
             </p>
             
             <div className="space-y-3">
@@ -101,14 +134,14 @@ export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
                 onClick={onManualAdd}
                 className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
               >
-                Add Manually
+                {t('choiceCards.manualEntry.button')}
               </Button>
               
               <div className="text-xs text-gray-500 bg-gray-900/50 rounded-lg p-3">
-                <div className="font-medium text-gray-300 mb-1">Perfect for:</div>
-                <div>• Testing different styles</div>
-                <div>• Adding 1-5 products</div>
-                <div>• Quick experimentation</div>
+                <div className="font-medium text-gray-300 mb-1">{t('choiceCards.manualEntry.perfectFor.title')}</div>
+                <div>• {t('choiceCards.manualEntry.perfectFor.testing')}</div>
+                <div>• {t('choiceCards.manualEntry.perfectFor.adding')}</div>
+                <div>• {t('choiceCards.manualEntry.perfectFor.precision')}</div>
               </div>
             </div>
           </div>
@@ -122,7 +155,7 @@ export default function ChoiceCards({ onParsed, onManualAdd }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-sm text-gray-300">
-            You can always add more products later using the other method
+            {t('choiceCards.helpText')}
           </span>
         </div>
       </div>

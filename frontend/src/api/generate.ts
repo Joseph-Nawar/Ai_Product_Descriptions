@@ -4,18 +4,44 @@ import { mockDownload, mockGenerate } from "./mock";
 
 const USE_MOCK = (import.meta as any).env.VITE_USE_MOCK === "true";
 
-export async function generateDescriptions(payload: BatchGenerationRequest | FormData): Promise<BatchResponse> {
+export async function generateDescriptionsFromCsv(file: File, audience: string, languageCode: string = "en"): Promise<BatchResponse> {
   if (USE_MOCK) {
-    const batchRequest = Array.isArray(payload) ? payload : JSON.parse(String((payload as any).get("json") || "[]"));
-    // For mock, we'll use the products array directly
-    const products = 'products' in batchRequest ? batchRequest.products : batchRequest;
+    // For mock, parse the CSV and use the existing mock generation
+    const Papa = await import("papaparse");
+    const csvText = await file.text();
+    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    const products = parsed.data.map((row: any, index: number) => ({
+      id: String(row.id || `row_${index}`).trim(),
+      product_name: String(row.product_name || row.title || row.name || "").trim(),
+      category: String(row.category || row.type || "").trim(),
+      features: String(row.features || "").trim(),
+      audience: audience.trim(),
+      keywords: row.keywords ? String(row.keywords).trim() : undefined,
+      languageCode: languageCode
+    })).filter((r: any) => r.product_name);
+    
     return mockGenerate(products);
   }
   
-  // Accept both BatchGenerationRequest and CSV form-data (backend should handle both)
-  const isFormData = typeof FormData !== "undefined" && payload instanceof FormData;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("audience", audience);
+  formData.append("languageCode", languageCode);
+  
+  const res = await api.post<BatchResponse>("/api/generate-batch-csv", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  return res.data;
+}
+
+export async function generateDescriptions(payload: BatchGenerationRequest): Promise<BatchResponse> {
+  if (USE_MOCK) {
+    const products = payload.products;
+    return mockGenerate(products);
+  }
+  
   const res = await api.post<BatchResponse>("/api/generate-batch", payload, {
-    headers: isFormData ? { "Content-Type": "multipart/form-data" } : { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json" }
   });
   return res.data;
 }

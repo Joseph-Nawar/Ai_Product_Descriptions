@@ -10,17 +10,19 @@ export default {
       },
       colors: {
         primary: {
-          DEFAULT: '#38bdf8', // sky-400
-          dark: '#0ea5e9',   // sky-500
+          DEFAULT: '#2563eb', // blue-600 - matches TextGenie blue
+          dark: '#1d4ed8',   // blue-700
         },
         secondary: {
-          DEFAULT: '#a78bfa', // violet-400
-          dark: '#8b5cf6',   // violet-500
+          DEFAULT: '#1e40af', // blue-800 - darker blue for contrast
+          dark: '#1e3a8a',   // blue-900
         },
         accent: {
-          cyan: '#22d3ee',
-          fuchsia: '#d946ef',
-          emerald: '#34d399',
+          cyan: '#0891b2',   // cyan-600 - light blue accent
+          fuchsia: '#c026d3', // fuchsia-600 - red accent for tie
+          emerald: '#059669', // emerald-600 - success green
+          gold: '#d97706',   // amber-600 - gold accent
+          lightblue: '#0ea5e9', // sky-500 - light blue for genie
         },
         'glass-border': 'rgba(255, 255, 255, 0.1)',
         'glass-bg': 'rgba(17, 24, 39, 0.6)', // gray-900 with opacity
@@ -45,8 +47,8 @@ export default {
         },
       },
       boxShadow: {
-        'glow-primary': '0 0 20px 0 rgba(56, 189, 248, 0.4)',
-        'glow-secondary': '0 0 20px 0 rgba(167, 139, 250, 0.4)',
+        'glow-primary': '0 0 20px 0 rgba(37, 99, 235, 0.4)',
+        'glow-secondary': '0 0 20px 0 rgba(30, 64, 175, 0.4)',
       },
     },
   },

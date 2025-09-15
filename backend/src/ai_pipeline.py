@@ -314,9 +314,21 @@ def get_style_instructions(style_variation):
 **CRITICAL:** Write the product description in the {style_variation.upper()} style, strictly adhering to the defined rules for that format."""
 
 def build_gemini_prompt(row):
-    """Build a Gemini-optimized prompt with safety considerations"""
+    """Build a Gemini-optimized prompt with safety considerations and language support"""
     features_list = row.get("features", "")
     features_formatted = "\n".join([f"- {x.strip()}" for x in features_list.split(";") if x.strip()])
+    
+    # Get language code and create localization directive
+    language_code = row.get("languageCode", "en")
+    language_names = {
+        "en": "English",
+        "es": "Spanish", 
+        "fr": "French",
+        "de": "German",
+        "ja": "Japanese",
+        "zh": "Chinese"
+    }
+    target_language = language_names.get(language_code, "English")
     
     # Extract target audience from tone or create a default
     tone = row.get("tone", "professional").lower()
@@ -334,7 +346,35 @@ def build_gemini_prompt(row):
     style_variation = row.get("style_variation", "amazon").lower()
     style_instructions = get_style_instructions(style_variation)
     
-    prompt = f"""You are an expert e-commerce copywriter. Your task is to write a compelling, persuasive, and benefit-driven product description.
+    # Create a simpler prompt for non-English languages to avoid complexity issues
+    if language_code != "en":
+        # Use a very simple, direct approach for non-English languages
+        prompt = f"""Write a product description in {target_language} for this product:
+
+Product Name: {row.get("title", "")}
+Features: {features_formatted}
+Target Audience: {audience}
+Keyword: {row.get("primary_keyword", "")}
+
+Requirements:
+- Write everything in {target_language} only
+- Create a catchy title
+- Write a description paragraph
+- List 3 benefits
+- Write a short meta description
+
+Return this JSON format:
+{{
+  "title": "title in {target_language}",
+  "description": "description in {target_language}",
+  "bullets": ["benefit 1 in {target_language}", "benefit 2 in {target_language}", "benefit 3 in {target_language}"],
+  "meta": "meta description in {target_language}"
+}}"""
+    else:
+        # Use the original complex prompt for English
+        prompt = f"""You are a professional copywriter for the e-commerce market in {target_language}. The user will provide product details. You MUST generate the product description entirely in {target_language}. Do not translate proper nouns (product names, brand names) or technical specifications. Adapt the tone, cultural references, and marketing style to be appropriate for a {target_language}-speaking audience. The grammar and fluency must be perfect.
+
+**CRITICAL LANGUAGE REQUIREMENT:** All text you generate (title, description, bullets, meta) MUST be written in {target_language}. Do not include any English text in your response.
 
 **Product Details:**
 * **Title:** {row.get("title", "")}
@@ -354,16 +394,16 @@ def build_gemini_prompt(row):
 - Ensure all content is appropriate for general audiences.
 - Avoid any claims that cannot be substantiated.
 
-**Output Format (MUST BE IN JSON):**
+**Output Format (MUST BE IN JSON AND IN {target_language.upper()}):**
 {{
-  "title": "Your catchy product title here",
-  "description": "Your engaging introductory paragraph here. Speak directly to the target audience. Include the primary keyword naturally.",
+  "title": "Your catchy product title here in {target_language}",
+  "description": "Your engaging introductory paragraph here in {target_language}. Speak directly to the target audience. Include the primary keyword naturally.",
   "bullets": [
-    "Benefit 1: Explain how a feature helps the customer",
-    "Benefit 2: Explain how a feature helps the customer", 
-    "Benefit 3: Explain how a feature helps the customer"
+    "Benefit 1: Explain how a feature helps the customer in {target_language}",
+    "Benefit 2: Explain how a feature helps the customer in {target_language}", 
+    "Benefit 3: Explain how a feature helps the customer in {target_language}"
   ],
-  "meta": "140-character meta description for SEO"
+  "meta": "140-character meta description for SEO in {target_language}"
 }}"""
     
     return prompt

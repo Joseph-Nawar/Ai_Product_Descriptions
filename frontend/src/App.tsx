@@ -1,43 +1,77 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { Routes, Route, Link } from "react-router-dom";
-import Home from "./pages/Home";
-import Results from "./pages/Results";
+import { useTranslation } from "react-i18next";
+import TextGenieLogo from "./components/TextGenieLogo";
+import LanguageSelector from "./components/LanguageSelector";
+import { SUPPORTED_LANGUAGES } from "./constants/languages";
+
+// Lazy load route components for better performance
+const Home = React.lazy(() => import("./pages/Home"));
+const Results = React.lazy(() => import("./pages/Results"));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  </div>
+);
 
 export default function App() {
+  const { t, i18n } = useTranslation();
+
+  const handleLanguageChange = (languageCode: string) => {
+    i18n.changeLanguage(languageCode);
+  };
+
   return (
     <>
       <div className="aurora-background"></div>
       <div className="relative min-h-dvh z-10">
         <header className="sticky top-4 z-50 mx-4 md:mx-8">
             <div className="bg-glass-bg backdrop-blur-lg border border-glass-border rounded-2xl shadow-2xl shadow-black/20">
-              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between">
-                  <Link to="/" className="flex items-center space-x-3 group">
-                    <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                      <span className="text-white font-extrabold text-lg">A</span>
+                  <Link to="/" className="flex items-center group">
+                    <div className="group-hover:scale-110 transition-transform duration-300">
+                      <TextGenieLogo size="xl" />
                     </div>
-                    <span className="font-bold text-2xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
-                      Describer
-                    </span>
                   </Link>
-                  <nav className="text-sm font-medium text-gray-300">
-                    <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors duration-200">
-                      Documentation
-                    </a>
-                  </nav>
+                  <div className="flex items-center space-x-6">
+                    <nav className="text-sm font-medium text-gray-300">
+                      <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors duration-200">
+                        {t('navigation.documentation')}
+                      </a>
+                    </nav>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-400">Language:</span>
+                      <select
+                        value={i18n.language}
+                        onChange={(e) => handleLanguageChange(e.target.value)}
+                        className="px-2 py-1 bg-gray-800 border border-glass-border rounded text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {SUPPORTED_LANGUAGES.map((language) => (
+                          <option key={language.code} value={language.code}>
+                            {language.nativeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
         </header>
         <main className="relative mt-8">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/results" element={<Results />} />
-          </Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/results" element={<Results />} />
+            </Routes>
+          </Suspense>
         </main>
         <footer className="mt-24 pb-8">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-sm text-center text-gray-400">
-            &copy; {new Date().getFullYear()} AI Describer — The Future of E-commerce Content.
+            &copy; {new Date().getFullYear()} {t('footer.copyright')}
           </div>
         </footer>
       </div>

@@ -1,21 +1,27 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import FileUpload from "../components/FileUpload";
 import ManualForm from "../components/ManualForm";
 import ChoiceCards from "../components/ChoiceCards";
 import ToneSelector from "../components/ToneSelector";
 import StyleSelector from "../components/StyleSelector";
+import LanguageSelector from "../components/LanguageSelector";
+import TextGenieLogo from "../components/TextGenieLogo";
 import { Button, Banner, Spinner, StatusAnnouncer } from "../components/UI";
 import { ProductInput } from "../types";
 import { generateDescriptions } from "../api/generate";
 import { handleApiError } from "../api/client";
 import { useNavigate } from "react-router-dom";
+import { DEFAULT_LANGUAGE } from "../constants/languages";
 
 export default function Home() {
+  const { t } = useTranslation();
   const [batch, setBatch] = useState<ProductInput[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchTone, setBatchTone] = useState<string>("professional");
   const [batchStyle, setBatchStyle] = useState<string>("amazon");
+  const [batchLanguage, setBatchLanguage] = useState<string>(DEFAULT_LANGUAGE);
   const [showManualForm, setShowManualForm] = useState(false);
   const navigate = useNavigate();
 
@@ -35,7 +41,8 @@ export default function Home() {
       const batchRequest = {
         products: batch,
         batchTone: batchTone,
-        batchStyle: batchStyle
+        batchStyle: batchStyle,
+        languageCode: batchLanguage
       };
       const res = await generateDescriptions(batchRequest);
       navigate(`/results?batch_id=${encodeURIComponent(res.batch_id)}`, { state: res });
@@ -51,15 +58,12 @@ export default function Home() {
       {/* Hero Section */}
       <section className="text-center py-16 animate-slide-in" style={{ animationDelay: '100ms' }}>
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter">
-          <span className="bg-gradient-to-r from-accent-cyan to-accent-fuchsia bg-clip-text text-transparent">
-            Instant, Brilliant
+          <span className="bg-gradient-to-r from-accent-lightblue to-accent-cyan bg-clip-text text-transparent">
+            {t('pageTitles.dashboard')}
           </span>
-          <br />
-          Product Descriptions.
         </h1>
         <p className="mt-6 text-lg text-gray-400 max-w-2xl mx-auto">
-          Unleash AI to write compelling, SEO-optimized copy that converts.
-          Save time, boost sales, and elevate your brand effortlessly.
+          {t('hero.subtitle')}
         </p>
       </section>
 
@@ -67,23 +71,31 @@ export default function Home() {
 
       {/* Batch Style Configuration - Always Visible */}
       <section className="animate-slide-in relative z-[99997]" style={{ animationDelay: '200ms' }}>
-        <GlassPanel icon="style" title="Apply Style to Entire Batch">
+        <GlassPanel icon="style" title={t('sections.styleConfiguration.title')}>
           <div className="space-y-6">
             {batch.length > 0 ? (
               <>
-                <p className="text-gray-400 text-sm">Configure the tone and format style that will be applied to all products in your batch.</p>
+                <p className="text-gray-400 text-sm">{t('sections.styleConfiguration.description')}</p>
                 
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 md:grid-cols-3">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Batch Tone *</label>
+                    <label className="text-sm font-medium text-gray-300">{t('sections.styleConfiguration.brandVoice')} *</label>
                     <ToneSelector value={batchTone} onChange={setBatchTone} />
-                    <p className="text-xs text-gray-400">The overall voice and personality for all descriptions</p>
+                    <p className="text-xs text-gray-400">{t('sections.styleConfiguration.brandVoiceDescription')}</p>
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Batch Format Style *</label>
+                    <label className="text-sm font-medium text-gray-300">{t('sections.styleConfiguration.platformStyle')} *</label>
                     <StyleSelector value={batchStyle} onChange={setBatchStyle} />
-                    <p className="text-xs text-gray-400">Platform-specific writing style for all descriptions</p>
+                    <p className="text-xs text-gray-400">{t('sections.styleConfiguration.platformStyleDescription')}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <LanguageSelector 
+                      value={batchLanguage} 
+                      onChange={setBatchLanguage}
+                      showNativeNames={true}
+                    />
                   </div>
                 </div>
               </>
@@ -95,24 +107,31 @@ export default function Home() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-100">Choose Your Writing Style</h3>
+                  <h3 className="text-xl font-semibold text-gray-100">{t('sections.getStarted.chooseVoice')}</h3>
                   <p className="text-gray-400 max-w-md mx-auto">
-                    Select a tone and platform style to see how it transforms your product descriptions. 
-                    Add products below to generate descriptions in your chosen style!
+                    {t('sections.getStarted.description')}
                   </p>
                 </div>
                 
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 md:grid-cols-3">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Batch Tone *</label>
+                    <label className="text-sm font-medium text-gray-300">{t('sections.styleConfiguration.brandVoice')} *</label>
                     <ToneSelector value={batchTone} onChange={setBatchTone} />
                     <p className="text-xs text-gray-400">Choose the voice and personality for your descriptions</p>
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Batch Format Style *</label>
+                    <label className="text-sm font-medium text-gray-300">{t('sections.styleConfiguration.platformStyle')} *</label>
                     <StyleSelector value={batchStyle} onChange={setBatchStyle} />
                     <p className="text-xs text-gray-400">Select platform-specific writing style (Amazon, Etsy, Shopify, eBay)</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <LanguageSelector 
+                      value={batchLanguage} 
+                      onChange={setBatchLanguage}
+                      showNativeNames={true}
+                    />
                   </div>
                 </div>
                 
@@ -122,9 +141,9 @@ export default function Home() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <div>
-                      <p className="text-sm text-gray-200 font-medium mb-1">Ready to generate?</p>
+                      <p className="text-sm text-gray-200 font-medium mb-1">{t('sections.getStarted.readyToGrant')}</p>
                       <p className="text-xs text-gray-400">
-                        Add products manually below or upload a CSV file to generate descriptions in your chosen style!
+                        {t('sections.getStarted.addProducts')}
                       </p>
                     </div>
                   </div>
@@ -138,12 +157,12 @@ export default function Home() {
       {/* Input Methods Section - Only show when batch has products */}
       {batch.length > 0 && (
         <section className="grid gap-8 lg:grid-cols-2 animate-slide-in relative z-[1]" style={{ animationDelay: '300ms' }}>
-          <GlassPanel icon="upload" title="Upload More CSV">
-            <p className="text-gray-400 text-sm mb-4">Add more products to your existing batch.</p>
+          <GlassPanel icon="upload" title={t('sections.inputMethods.uploadMore')}>
+            <p className="text-gray-400 text-sm mb-4">{t('sections.inputMethods.uploadMoreDescription')}</p>
             <FileUpload onParsed={addRows} />
           </GlassPanel>
-          <GlassPanel icon="add" title="Add More Manually">
-            <p className="text-gray-400 text-sm mb-4">Add individual products to your existing batch.</p>
+          <GlassPanel icon="add" title={t('sections.inputMethods.addMore')}>
+            <p className="text-gray-400 text-sm mb-4">{t('sections.inputMethods.addMoreDescription')}</p>
             <ManualForm onAdd={addRow} />
           </GlassPanel>
         </section>
@@ -152,7 +171,7 @@ export default function Home() {
       {/* Choice Cards - Only show when batch is empty */}
       {batch.length === 0 && (
         <section className="animate-slide-in" style={{ animationDelay: '300ms' }}>
-          <GlassPanel icon="start" title="Get Started">
+          <GlassPanel icon="start" title={t('sections.getStarted.title')}>
             <ChoiceCards 
               onParsed={addRows} 
               onManualAdd={() => setShowManualForm(true)} 
@@ -163,7 +182,7 @@ export default function Home() {
 
       {/* Batch Preview Section */}
       <section className="animate-slide-in relative z-[1]" style={{ animationDelay: '400ms' }}>
-        <GlassPanel icon="batch" title="Generation Batch" count={batch.length}>
+        <GlassPanel icon="batch" title={t('sections.productWishlist.title')} count={batch.length}>
           <div className="rounded-xl border border-glass-border p-4 bg-gray-900 max-h-80 overflow-y-auto">
             {batch.length > 0 ? (
               <div className="space-y-3">
@@ -179,12 +198,12 @@ export default function Home() {
             ) : (
               <div className="text-center py-12 text-gray-500">
                 <svg className="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c.251.023.501.05.75.082a.75.75 0 01.75.75v5.714a2.25 2.25 0 00.659 1.591L14.25 14.5M14.25 14.5L19 9.75M14.25 14.5L19 19.25M12 21a9 9 0 110-18 9 9 0 010 18z" /></svg>
-                <h3 className="text-lg font-semibold text-gray-300">Your batch is empty</h3>
-                <p className="mt-1">Add products above to begin.</p>
+                <h3 className="text-lg font-semibold text-gray-300">{t('sections.productWishlist.empty')}</h3>
+                <p className="mt-1">{t('sections.productWishlist.emptyDescription')}</p>
               </div>
             )}
           </div>
-          {batch.length > 0 && <Button variant="tertiary" onClick={clearBatch} className="mt-4">Clear Batch</Button>}
+          {batch.length > 0 && <Button variant="tertiary" onClick={clearBatch} className="mt-4">{t('sections.productWishlist.clearWishlist')}</Button>}
         </GlassPanel>
       </section>
 
@@ -200,28 +219,28 @@ export default function Home() {
         >
           {loading ? ( 
             <span className="flex items-center justify-center gap-3">
-              <Spinner /> Generating...
+              <Spinner /> {t('buttons.generating')}
             </span> 
           ) : batch.length > 0 ? (
-            `Generate (${batch.length}) Descriptions`
+            `${t('buttons.generate')} (${batch.length})`
           ) : (
             <span className="flex items-center justify-center gap-2">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              Add Products to Generate
+              {t('buttons.addProducts')}
             </span>
           )}
         </Button>
       </div>
-      <StatusAnnouncer message={loading ? "Generating..." : error ? `Error: ${error}` : "Ready"} />
+      <StatusAnnouncer message={loading ? t('buttons.generating') : error ? `Error: ${error}` : "Ready"} />
 
       {/* Manual Form Modal */}
       {showManualForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[99999]">
           <div className="bg-gray-900 rounded-2xl border border-glass-border p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-100">Add Product Manually</h2>
+              <h2 className="text-xl font-semibold text-gray-100">{t('modals.addProduct.title')}</h2>
               <button
                 onClick={() => setShowManualForm(false)}
                 className="text-gray-400 hover:text-gray-200 transition-colors"

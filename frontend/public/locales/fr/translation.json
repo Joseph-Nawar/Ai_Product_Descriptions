@@ -1,0 +1,105 @@
+{
+  "pageTitles": {
+    "dashboard": "Où les Mots Deviennent des Revenus",
+    "results": "Vos Descriptions TextGenie Sont Prêtes"
+  },
+  "navigation": {
+    "documentation": "Documentation",
+    "newCatalog": "Nouveau Catalogue"
+  },
+  "hero": {
+    "subtitle": "Transformez les spécifications de vos produits en copie persuasive qui convertit les visiteurs en clients. Laissez TextGenie exaucer vos souhaits ecommerce avec des descriptions puissantes et riches en SEO."
+  },
+  "sections": {
+    "styleConfiguration": {
+      "title": "Choisissez le Style Magique de votre Génie",
+      "description": "Configurez la voix magique et le style de plateforme que TextGenie utilisera pour tous vos produits.",
+      "brandVoice": "Voix de Marque",
+      "brandVoiceDescription": "La personnalité et la voix pour toutes vos descriptions de produits",
+      "platformStyle": "Style de Plateforme",
+      "platformStyleDescription": "Style d'écriture spécifique à la plateforme pour toutes les descriptions"
+    },
+    "getStarted": {
+      "title": "Commencer",
+      "chooseVoice": "Choisissez la Voix de votre Génie",
+      "description": "Sélectionnez une voix magique et un style de plateforme pour voir comment TextGenie transforme vos descriptions de produits. Ajoutez des produits ci-dessous pour exaucer vos souhaits ecommerce !",
+      "readyToGrant": "Prêt à exaucer vos souhaits ?",
+      "addProducts": "Ajoutez des produits manuellement ci-dessous ou téléchargez un fichier CSV pour laisser TextGenie faire sa magie !"
+    },
+    "productWishlist": {
+      "title": "Votre Liste de Souhaits de Produits",
+      "empty": "Votre liste de souhaits est vide",
+      "emptyDescription": "Ajoutez des produits ci-dessus pour réaliser vos souhaits.",
+      "clearWishlist": "Vider la Liste de Souhaits"
+    },
+    "inputMethods": {
+      "uploadMore": "Télécharger Plus de Produits",
+      "uploadMoreDescription": "Ajoutez plus de produits à votre catalogue existant.",
+      "addMore": "Ajouter Plus de Produits Manuellement",
+      "addMoreDescription": "Ajoutez des produits individuels à votre lot existant."
+    }
+  },
+  "choiceCards": {
+    "title": "Ajouter des Produits à Votre Liste de Souhaits",
+    "subtitle": "Choisissez comment vous souhaitez ajouter des produits pour que TextGenie fasse sa magie",
+    "csvUpload": {
+      "title": "Télécharger Votre Liste de Souhaits",
+      "description": "Parfait pour mettre à l'échelle votre catalogue rapidement. Téléchargez les données de vos produits et laissez TextGenie exaucer tous vos souhaits d'un coup.",
+      "targetAudience": "Audience Cible",
+      "audiencePlaceholder": "ex., propriétaires de maison, nouveaux parents, joueurs",
+      "button": "Télécharger Liste de Souhaits",
+      "smartProcessing": {
+        "title": "Traitement Intelligent CSV :",
+        "description": "Détecte automatiquement les noms de produits et catégories des en-têtes de votre CSV",
+        "maxSize": "Taille max : 10MB"
+      }
+    },
+    "manualEntry": {
+      "title": "Ajouter des Souhaits Individuels",
+      "description": "Idéal pour tester différents styles magiques et ajouter des produits un par un avec précision.",
+      "button": "Faire un Vœu",
+      "perfectFor": {
+        "title": "Parfait pour :",
+        "testing": "Tester différentes voix magiques",
+        "adding": "Ajouter 1-5 produits",
+        "precision": "Création précise de souhaits"
+      }
+    },
+    "helpText": "Vous pouvez toujours ajouter plus de produits plus tard en utilisant l'autre méthode"
+  },
+  "forms": {
+    "languageSelector": {
+      "label": "Langue de Sortie",
+      "description": "Sélectionnez la langue pour les descriptions générées"
+    },
+    "batchLanguageSelector": {
+      "label": "Générer des descriptions en :",
+      "description": "Langue pour toutes les descriptions dans ce lot"
+    }
+  },
+  "buttons": {
+    "generate": "Générer des Descriptions",
+    "generating": "Génération...",
+    "addProducts": "Ajouter des Produits à Générer"
+  },
+  "results": {
+    "descriptionsGenerated": "descriptions générées. Modifiez ci-dessous et exportez vos résultats.",
+    "exportResults": "Exporter les Résultats"
+  },
+  "footer": {
+    "copyright": "TextGenie — Où les Mots Deviennent des Revenus."
+  },
+  "modals": {
+    "addProduct": {
+      "title": "Ajouter un Produit Manuellement"
+    }
+  },
+  "languages": {
+    "en": "Anglais",
+    "es": "Espagnol",
+    "fr": "Français",
+    "de": "Allemand",
+    "ja": "Japonais",
+    "zh": "Chinois"
+  }
+}
