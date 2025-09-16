@@ -2,7 +2,7 @@ import React, { Suspense } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import TextGenieLogo from "./components/TextGenieLogo";
-import LanguageSelector from "./components/LanguageSelector";
+import HeaderLanguageSelector from "./components/HeaderLanguageSelector";
 import { SUPPORTED_LANGUAGES } from "./constants/languages";
 
 // Lazy load route components for better performance
@@ -44,17 +44,10 @@ export default function App() {
                     </nav>
                     <div className="flex items-center space-x-2">
                       <span className="text-sm text-gray-400">Language:</span>
-                      <select
+                      <HeaderLanguageSelector
                         value={i18n.language}
-                        onChange={(e) => handleLanguageChange(e.target.value)}
-                        className="px-2 py-1 bg-gray-800 border border-glass-border rounded text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        {SUPPORTED_LANGUAGES.map((language) => (
-                          <option key={language.code} value={language.code}>
-                            {language.nativeName}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={handleLanguageChange}
+                      />
                     </div>
                   </div>
                 </div>

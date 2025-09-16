@@ -130,9 +130,9 @@ async def startup_event():
         cost_tracker = CostTracker()
         safety_filter = SafetyFilter()
         
-        # Rate limiting for API calls
-        last_api_call_time = 0
-        MIN_API_INTERVAL = 2.0  # Minimum 2 seconds between API calls
+        # TEMPORARILY DISABLED FOR TESTING - Rate limiting for API calls
+        # last_api_call_time = 0
+        # MIN_API_INTERVAL = 2.0  # Minimum 2 seconds between API calls
         
         print("✅ AI Product Descriptions API started successfully")
         if model is not None:
@@ -148,18 +148,20 @@ async def startup_event():
         print(f"❌ Failed to start API: {str(e)}")
         raise
 
+# TEMPORARILY DISABLED FOR TESTING
 def rate_limit_api_call():
     """Ensure minimum interval between API calls to avoid rate limiting"""
-    global last_api_call_time
-    current_time = time.time()
-    time_since_last_call = current_time - last_api_call_time
-    
-    if time_since_last_call < MIN_API_INTERVAL:
-        sleep_time = MIN_API_INTERVAL - time_since_last_call
-        logging.info(f"Rate limiting: sleeping for {sleep_time:.2f} seconds")
-        time.sleep(sleep_time)
-    
-    last_api_call_time = time.time()
+    # global last_api_call_time
+    # current_time = time.time()
+    # time_since_last_call = current_time - last_api_call_time
+    # 
+    # if time_since_last_call < MIN_API_INTERVAL:
+    #     sleep_time = MIN_API_INTERVAL - time_since_last_call
+    #     logging.info(f"Rate limiting: sleeping for {sleep_time:.2f} seconds")
+    #     time.sleep(sleep_time)
+    # 
+    # last_api_call_time = time.time()
+    pass
 
 @app.get("/api/health")
 async def health_check():
@@ -207,7 +209,7 @@ Return JSON:
         logging.info(f"Testing language generation for: {language_code}")
         logging.info(f"Test prompt: {test_prompt}")
         
-        rate_limit_api_call()  # Add rate limiting
+        # TEMPORARILY DISABLED FOR TESTING - rate_limit_api_call()  # Add rate limiting
         ai_text, tokens_used, response_time = call_gemini_generate(
             model=model,
             prompt=test_prompt,
@@ -399,7 +401,7 @@ async def generate_batch_json(request: Dict[str, Any]):
                 
                 try:
                     logging.info(f"Generating content for language: {language_code}")
-                    rate_limit_api_call()  # Add rate limiting
+                    # TEMPORARILY DISABLED FOR TESTING - rate_limit_api_call()  # Add rate limiting
                     ai_text, tokens_used, response_time = call_gemini_generate(
                         model=model,
                         prompt=prompt,
@@ -437,7 +439,7 @@ async def generate_batch_json(request: Dict[str, Any]):
                             fallback_row["languageCode"] = "en"
                             fallback_prompt = build_gemini_prompt(fallback_row)
                             
-                            rate_limit_api_call()  # Add rate limiting
+                            # TEMPORARILY DISABLED FOR TESTING - rate_limit_api_call()  # Add rate limiting
                             ai_text, tokens_used, response_time = call_gemini_generate(
                                 model=model,
                                 prompt=fallback_prompt,
@@ -469,7 +471,7 @@ Return JSON:
   "meta": "Meta description"
 }}"""
                                 
-                                rate_limit_api_call()  # Add rate limiting
+                                # TEMPORARILY DISABLED FOR TESTING - rate_limit_api_call()  # Add rate limiting
                                 ai_text, tokens_used, response_time = call_gemini_generate(
                                     model=model,
                                     prompt=simple_prompt,
@@ -518,10 +520,10 @@ Return JSON:
                 
                 results.append(result)
                 
-                # Add delay between API calls to avoid rate limits
-                if idx < len(products) - 1:  # Don't delay after the last item
-                    import time
-                    time.sleep(2)
+                # TEMPORARILY DISABLED FOR TESTING - Add delay between API calls to avoid rate limits
+                # if idx < len(products) - 1:  # Don't delay after the last item
+                #     import time
+                #     time.sleep(2)
                 
             except Exception as e:
                 errors.append({
