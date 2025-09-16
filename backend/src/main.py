@@ -6,7 +6,7 @@ import asyncio
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import pandas as pd
@@ -22,6 +22,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 from utils.helpers import ensure_dir, timestamp, safe_extract_json
 from src.ai_pipeline import load_env, call_gemini_generate, build_gemini_prompt, row_to_dict, CostTracker, SafetyFilter
 from src.seo_check import seo_evaluate
+from src.auth.firebase import get_current_user
 
 # Load environment
 load_dotenv(BACKEND_DIR / ".env")
@@ -33,10 +34,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Environment-driven CORS with localhost defaults
+allowed_env = os.getenv("ALLOWED_ORIGINS", "")
+extra = [o.strip() for o in allowed_env.split(",") if o.strip()]
+DEFAULTS = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000"]
+ALLOWED = list(dict.fromkeys(DEFAULTS + extra))  # unique, preserve order
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+    allow_origins=ALLOWED,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +52,10 @@ app.add_middleware(
 model = None
 cost_tracker = None
 safety_filter = None
+
+# Rate limiting configuration - TEMPORARILY DISABLED FOR TESTING
+# last_api_call_time = 0
+# MIN_API_INTERVAL = 2.0  # Minimum 2 seconds between API calls
 
 def find_column(columns, synonyms):
     """
@@ -130,10 +140,6 @@ async def startup_event():
         cost_tracker = CostTracker()
         safety_filter = SafetyFilter()
         
-        # Rate limiting for API calls
-        last_api_call_time = 0
-        MIN_API_INTERVAL = 2.0  # Minimum 2 seconds between API calls
-        
         print("✅ AI Product Descriptions API started successfully")
         if model is not None:
             print(f"🤖 Model: {conf['model_name']} (Live mode)")
@@ -148,18 +154,20 @@ async def startup_event():
         print(f"❌ Failed to start API: {str(e)}")
         raise
 
+# TEMPORARILY DISABLED FOR TESTING
 def rate_limit_api_call():
     """Ensure minimum interval between API calls to avoid rate limiting"""
-    global last_api_call_time
-    current_time = time.time()
-    time_since_last_call = current_time - last_api_call_time
-    
-    if time_since_last_call < MIN_API_INTERVAL:
-        sleep_time = MIN_API_INTERVAL - time_since_last_call
-        logging.info(f"Rate limiting: sleeping for {sleep_time:.2f} seconds")
-        time.sleep(sleep_time)
-    
-    last_api_call_time = time.time()
+    # global last_api_call_time
+    # current_time = time.time()
+    # time_since_last_call = current_time - last_api_call_time
+    # 
+    # if time_since_last_call < MIN_API_INTERVAL:
+    #     sleep_time = MIN_API_INTERVAL - time_since_last_call
+    #     logging.info(f"Rate limiting: sleeping for {sleep_time:.2f} seconds")
+    #     time.sleep(sleep_time)
+    # 
+    # last_api_call_time = time.time()
+    pass  # TEMPORARILY DISABLED FOR TESTING
 
 @app.get("/api/health")
 async def health_check():
@@ -168,6 +176,25 @@ async def health_check():
         "status": "healthy",
         "model_loaded": model is not None,
         "timestamp": timestamp()
+    }
+
+
+@app.get("/auth/me")
+async def auth_me(user = Depends(get_current_user)):
+    """Auth test endpoint that returns Firebase user claims"""
+    # return only safe fields
+    safe = {k: user.get(k) for k in ("uid","email","email_verified","name","picture","auth_time")}
+    return {"user": safe}
+
+
+@app.post("/generate")
+async def generate_test(request: Dict[str, Any], user = Depends(get_current_user)):
+    """Simple auth-protected endpoint for testing authentication"""
+    return {
+        "message": "Authentication successful", 
+        "user_id": user.get("uid"),
+        "user_email": user.get("email"),
+        "request_received": request
     }
 
 
@@ -207,7 +234,7 @@ Return JSON:
         logging.info(f"Testing language generation for: {language_code}")
         logging.info(f"Test prompt: {test_prompt}")
         
-        rate_limit_api_call()  # Add rate limiting
+        # rate_limit_api_call()  # TEMPORARILY DISABLED FOR TESTING
         ai_text, tokens_used, response_time = call_gemini_generate(
             model=model,
             prompt=test_prompt,
@@ -326,7 +353,7 @@ async def generate_description(
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 @app.post("/api/generate-batch")
-async def generate_batch_json(request: Dict[str, Any]):
+async def generate_batch_json(request: Dict[str, Any], user = Depends(get_current_user)):
     """Generate descriptions for multiple products from batch request"""
     if model is None:
         raise HTTPException(status_code=500, detail="AI model not initialized")
@@ -399,7 +426,7 @@ async def generate_batch_json(request: Dict[str, Any]):
                 
                 try:
                     logging.info(f"Generating content for language: {language_code}")
-                    rate_limit_api_call()  # Add rate limiting
+                    # rate_limit_api_call()  # TEMPORARILY DISABLED FOR TESTING
                     ai_text, tokens_used, response_time = call_gemini_generate(
                         model=model,
                         prompt=prompt,
@@ -437,7 +464,7 @@ async def generate_batch_json(request: Dict[str, Any]):
                             fallback_row["languageCode"] = "en"
                             fallback_prompt = build_gemini_prompt(fallback_row)
                             
-                            rate_limit_api_call()  # Add rate limiting
+                            # rate_limit_api_call()  # TEMPORARILY DISABLED FOR TESTING
                             ai_text, tokens_used, response_time = call_gemini_generate(
                                 model=model,
                                 prompt=fallback_prompt,
@@ -469,7 +496,7 @@ Return JSON:
   "meta": "Meta description"
 }}"""
                                 
-                                rate_limit_api_call()  # Add rate limiting
+                                # rate_limit_api_call()  # TEMPORARILY DISABLED FOR TESTING
                                 ai_text, tokens_used, response_time = call_gemini_generate(
                                     model=model,
                                     prompt=simple_prompt,
@@ -518,10 +545,10 @@ Return JSON:
                 
                 results.append(result)
                 
-                # Add delay between API calls to avoid rate limits
-                if idx < len(products) - 1:  # Don't delay after the last item
-                    import time
-                    time.sleep(2)
+                # Add delay between API calls to avoid rate limits - TEMPORARILY DISABLED FOR TESTING
+                # if idx < len(products) - 1:  # Don't delay after the last item
+                #     import time
+                #     time.sleep(2)
                 
             except Exception as e:
                 errors.append({
@@ -749,6 +776,6 @@ async def regenerate_description(item: Dict[str, Any]):
         logging.error(f"Cost tracker status: {cost_tracker is not None}")
         raise HTTPException(status_code=500, detail=f"Regeneration failed: {str(e)}")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
