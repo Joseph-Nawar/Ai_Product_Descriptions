@@ -6,7 +6,7 @@ import asyncio
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import pandas as pd
@@ -19,12 +19,14 @@ THIS_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = THIS_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
+# Load environment BEFORE importing modules that need it
+load_dotenv(BACKEND_DIR / ".env")
+
 from utils.helpers import ensure_dir, timestamp, safe_extract_json, validate_and_ensure_compliance, generate_fallback_bullets
 from src.ai_pipeline import load_env, call_gemini_generate, build_gemini_prompt, row_to_dict, CostTracker, SafetyFilter
 from src.seo_check import seo_evaluate
 
-# Load environment
-load_dotenv(BACKEND_DIR / ".env")
+from src.auth.firebase import get_current_user
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -172,6 +174,13 @@ async def health_check():
         "timestamp": timestamp()
     }
 
+@app.get("/auth/me")
+async def auth_me(user = Depends(get_current_user)):
+    """Auth test endpoint that returns Firebase user claims"""
+    logging.info("🔐 Auth endpoint called - user authenticated successfully")
+    # return only safe fields
+    safe = {k: user.get(k) for k in ("uid","email","email_verified","name","picture","auth_time")}
+    return {"user": safe}
 
 @app.get("/api/test-language/{language_code}")
 async def test_language_generation(language_code: str):
@@ -355,8 +364,9 @@ async def generate_description(
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 @app.post("/api/generate-batch")
-async def generate_batch_json(request: Dict[str, Any]):
+async def generate_batch_json(request: Dict[str, Any], user = Depends(get_current_user)):
     """Generate descriptions for multiple products from batch request"""
+    logging.info(f"🚀 Generate batch endpoint called - user: {user.get('email', 'unknown')}")
     if model is None:
         raise HTTPException(status_code=500, detail="AI model not initialized")
     
@@ -788,8 +798,9 @@ async def download_batch(batch_id: str):
     )
 
 @app.post("/api/regenerate")
-async def regenerate_description(item: Dict[str, Any]):
+async def regenerate_description(item: Dict[str, Any], user = Depends(get_current_user)):
     """Regenerate a single product description"""
+    logging.info(f"🔄 Regenerate endpoint called - user: {user.get('email', 'unknown')}")
     if model is None:
         raise HTTPException(status_code=500, detail="AI model not initialized")
     

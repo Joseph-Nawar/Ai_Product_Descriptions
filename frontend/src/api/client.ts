@@ -1,9 +1,20 @@
 import axios, { AxiosError } from "axios";
+import { getIdToken } from "../auth/token";
+
 function trimTrailingSlash(s: string) { return s.endsWith("/") ? s.slice(0, -1) : s; }
 const env = (import.meta as any).env || {};
 const base = env.VITE_API_BASE_URL || env.VITE_API_BASE || "http://localhost:8000";
 export const API_BASE = trimTrailingSlash(String(base));
 export const api = axios.create({ baseURL: API_BASE, timeout: 300000, headers: { "Content-Type": "application/json" } });
+
+// Add authentication interceptor
+api.interceptors.request.use(async (config) => {
+  const token = await getIdToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 // Enhanced error handling for rate limits
 export function handleApiError(error: unknown): string {
@@ -18,6 +29,10 @@ export function handleApiError(error: unknown): string {
     
     if (axiosError.response?.status === 400) {
       return "Invalid request. Please check your input and try again.";
+    }
+    
+    if (axiosError.response?.status === 401) {
+      return "Authentication required. Please sign in and try again.";
     }
     
     if (axiosError.response?.status === 500) {

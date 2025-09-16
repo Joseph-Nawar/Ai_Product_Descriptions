@@ -1,13 +1,17 @@
 import React, { Suspense } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { AuthProvider } from "./auth/AuthProvider";
+import RequireAuth from "./auth/RequireAuth";
 import ProductGenieLogo from "./components/ProductGenieLogo";
 import HeaderLanguageSelector from "./components/HeaderLanguageSelector";
+import { UserProfile } from "./components/UserProfile";
 import { SUPPORTED_LANGUAGES } from "./constants/languages";
 
 // Lazy load route components for better performance
 const Home = React.lazy(() => import("./pages/Home"));
 const Results = React.lazy(() => import("./pages/Results"));
+const Login = React.lazy(() => import("./pages/Login"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -24,7 +28,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <AuthProvider>
       <div className="aurora-background"></div>
       <div className="relative min-h-dvh z-10">
         <header className="sticky top-4 z-50 mx-4 md:mx-8">
@@ -49,6 +53,11 @@ export default function App() {
                         onChange={handleLanguageChange}
                       />
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <Link to="/profile" className="text-sm text-gray-300 hover:text-primary transition-colors duration-200">
+                        Profile
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -59,6 +68,8 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/results" element={<Results />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/profile" element={<RequireAuth><UserProfile /></RequireAuth>} />
             </Routes>
           </Suspense>
         </main>
@@ -68,6 +79,6 @@ export default function App() {
           </div>
         </footer>
       </div>
-    </>
+    </AuthProvider>
   );
 }

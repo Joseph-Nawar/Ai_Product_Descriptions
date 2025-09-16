@@ -31,7 +31,7 @@ export default function ProductGenieLogo({ size = 'md', className = '' }: Produc
       width={currentSize}
       height={currentSize}
       loading="eager"
-      fetchPriority="high"
+      fetchpriority="high"
       decoding="async"
       // Responsive image attributes for better performance
       sizes={`${currentSize}px`}
