@@ -1,19 +1,19 @@
 {
   "pageTitles": {
     "dashboard": "Où les Mots Deviennent des Revenus",
-    "results": "Vos Descriptions TextGenie Sont Prêtes"
+    "results": "Vos Descriptions ProductGenie Sont Prêtes"
   },
   "navigation": {
     "documentation": "Documentation",
     "newCatalog": "Nouveau Catalogue"
   },
   "hero": {
-    "subtitle": "Transformez les spécifications de vos produits en copie persuasive qui convertit les visiteurs en clients. Laissez TextGenie exaucer vos souhaits ecommerce avec des descriptions puissantes et riches en SEO."
+    "subtitle": "Transformez les spécifications de vos produits en copie persuasive qui convertit les visiteurs en clients. Laissez ProductGenie exaucer vos souhaits ecommerce avec des descriptions puissantes et riches en SEO."
   },
   "sections": {
     "styleConfiguration": {
       "title": "Choisissez le Style Magique de votre Génie",
-      "description": "Configurez la voix magique et le style de plateforme que TextGenie utilisera pour tous vos produits.",
+      "description": "Configurez la voix magique et le style de plateforme que ProductGenie utilisera pour tous vos produits.",
       "brandVoice": "Voix de Marque",
       "brandVoiceDescription": "La personnalité et la voix pour toutes vos descriptions de produits",
       "platformStyle": "Style de Plateforme",
@@ -22,9 +22,9 @@
     "getStarted": {
       "title": "Commencer",
       "chooseVoice": "Choisissez la Voix de votre Génie",
-      "description": "Sélectionnez une voix magique et un style de plateforme pour voir comment TextGenie transforme vos descriptions de produits. Ajoutez des produits ci-dessous pour exaucer vos souhaits ecommerce !",
+      "description": "Sélectionnez une voix magique et un style de plateforme pour voir comment ProductGenie transforme vos descriptions de produits. Ajoutez des produits ci-dessous pour exaucer vos souhaits ecommerce !",
       "readyToGrant": "Prêt à exaucer vos souhaits ?",
-      "addProducts": "Ajoutez des produits manuellement ci-dessous ou téléchargez un fichier CSV pour laisser TextGenie faire sa magie !"
+      "addProducts": "Ajoutez des produits manuellement ci-dessous ou téléchargez un fichier CSV pour laisser ProductGenie faire sa magie !"
     },
     "productWishlist": {
       "title": "Votre Liste de Souhaits de Produits",
@@ -41,10 +41,10 @@
   },
   "choiceCards": {
     "title": "Ajouter des Produits à Votre Liste de Souhaits",
-    "subtitle": "Choisissez comment vous souhaitez ajouter des produits pour que TextGenie fasse sa magie",
+    "subtitle": "Choisissez comment vous souhaitez ajouter des produits pour que ProductGenie fasse sa magie",
     "csvUpload": {
       "title": "Télécharger Votre Liste de Souhaits",
-      "description": "Parfait pour mettre à l'échelle votre catalogue rapidement. Téléchargez les données de vos produits et laissez TextGenie exaucer tous vos souhaits d'un coup.",
+      "description": "Parfait pour mettre à l'échelle votre catalogue rapidement. Téléchargez les données de vos produits et laissez ProductGenie exaucer tous vos souhaits d'un coup.",
       "targetAudience": "Audience Cible",
       "audiencePlaceholder": "ex., propriétaires de maison, nouveaux parents, joueurs",
       "button": "Télécharger Liste de Souhaits",
@@ -87,7 +87,7 @@
     "exportResults": "Exporter les Résultats"
   },
   "footer": {
-    "copyright": "TextGenie — Où les Mots Deviennent des Revenus."
+    "copyright": "ProductGenie — Où les Mots Deviennent des Revenus."
   },
   "modals": {
     "addProduct": {

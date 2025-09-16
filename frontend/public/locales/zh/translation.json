@@ -1,19 +1,19 @@
 {
   "pageTitles": {
     "dashboard": "文字变收益的地方",
-    "results": "您的TextGenie描述已准备就绪"
+    "results": "您的ProductGenie描述已准备就绪"
   },
   "navigation": {
     "documentation": "文档",
     "newCatalog": "新目录"
   },
   "hero": {
-    "subtitle": "将您的产品规格转化为有说服力的文案，将访客转化为客户。让TextGenie用强大、富含SEO的描述来实现您的电商愿望。"
+    "subtitle": "将您的产品规格转化为有说服力的文案，将访客转化为客户。让ProductGenie用强大、富含SEO的描述来实现您的电商愿望。"
   },
   "sections": {
     "styleConfiguration": {
       "title": "选择您精灵的魔法风格",
-      "description": "配置TextGenie将用于所有产品的魔法声音和平台风格。",
+      "description": "配置ProductGenie将用于所有产品的魔法声音和平台风格。",
       "brandVoice": "品牌声音",
       "brandVoiceDescription": "所有产品描述的个性和声音",
       "platformStyle": "平台风格",
@@ -22,9 +22,9 @@
     "getStarted": {
       "title": "开始",
       "chooseVoice": "选择您精灵的声音",
-      "description": "选择魔法声音和平台风格，看看TextGenie如何转换您的产品描述。在下面添加产品来实现您的电商愿望！",
+      "description": "选择魔法声音和平台风格，看看ProductGenie如何转换您的产品描述。在下面添加产品来实现您的电商愿望！",
       "readyToGrant": "准备好实现您的愿望了吗？",
-      "addProducts": "在下面手动添加产品或上传CSV文件让TextGenie施展魔法！"
+      "addProducts": "在下面手动添加产品或上传CSV文件让ProductGenie施展魔法！"
     },
     "productWishlist": {
       "title": "您的产品愿望清单",
@@ -41,10 +41,10 @@
   },
   "choiceCards": {
     "title": "向您的愿望清单添加产品",
-    "subtitle": "选择您希望如何添加产品让TextGenie施展魔法",
+    "subtitle": "选择您希望如何添加产品让ProductGenie施展魔法",
     "csvUpload": {
       "title": "上传您的愿望清单",
-      "description": "非常适合快速扩展您的目录。上传您的产品数据，让TextGenie一次性实现所有愿望。",
+      "description": "非常适合快速扩展您的目录。上传您的产品数据，让ProductGenie一次性实现所有愿望。",
       "targetAudience": "目标受众",
       "audiencePlaceholder": "例如：房主、新父母、游戏玩家",
       "button": "上传愿望清单",
@@ -87,7 +87,7 @@
     "exportResults": "导出结果"
   },
   "footer": {
-    "copyright": "TextGenie — 文字变收益的地方。"
+    "copyright": "ProductGenie — 文字变收益的地方。"
   },
   "modals": {
     "addProduct": {

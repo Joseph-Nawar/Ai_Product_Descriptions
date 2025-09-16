@@ -1,7 +1,7 @@
 import React, { Suspense } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import TextGenieLogo from "./components/TextGenieLogo";
+import ProductGenieLogo from "./components/ProductGenieLogo";
 import HeaderLanguageSelector from "./components/HeaderLanguageSelector";
 import { SUPPORTED_LANGUAGES } from "./constants/languages";
 
@@ -33,7 +33,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <Link to="/" className="flex items-center group">
                     <div className="group-hover:scale-110 transition-transform duration-300">
-                      <TextGenieLogo size="xl" />
+                      <ProductGenieLogo size="xl" />
                     </div>
                   </Link>
                   <div className="flex items-center space-x-6">

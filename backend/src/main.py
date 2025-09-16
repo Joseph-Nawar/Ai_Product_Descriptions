@@ -19,7 +19,7 @@ THIS_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = THIS_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-from utils.helpers import ensure_dir, timestamp, safe_extract_json
+from utils.helpers import ensure_dir, timestamp, safe_extract_json, validate_and_ensure_compliance, generate_fallback_bullets
 from src.ai_pipeline import load_env, call_gemini_generate, build_gemini_prompt, row_to_dict, CostTracker, SafetyFilter
 from src.seo_check import seo_evaluate
 
@@ -213,7 +213,7 @@ Return JSON:
         ai_text, tokens_used, response_time = call_gemini_generate(
             model=model,
             prompt=test_prompt,
-            temperature=0.2,
+            temperature=0.8,  # Increased for more creative and persuasive content
             cost_tracker=cost_tracker
         )
         
@@ -286,21 +286,48 @@ async def generate_description(
         ai_text, tokens_used, response_time = call_gemini_generate(
             model=model,
             prompt=prompt,
-            temperature=0.2,
+            temperature=0.8,  # Increased for more creative and persuasive content
             cost_tracker=cost_tracker
         )
         
         # Sanitize output
         ai_text = safety_filter.sanitize_output(ai_text)
         
-        # Parse response
-        parsed = safe_extract_json(ai_text)
+        # Parse response with compliance validation
+        try:
+            parsed = safe_extract_json(ai_text)
+            validated = validate_and_ensure_compliance(parsed)
+        except ValueError as validation_error:
+            # If compliance validation fails, try to generate fallback bullets
+            logging.warning(f"Compliance validation failed: {validation_error}")
+            try:
+                # Extract what we can from the response
+                fallback_parsed = safe_extract_json(ai_text)
+                if fallback_parsed.get("title") and fallback_parsed.get("description"):
+                    # Generate fallback bullets
+                    fallback_bullets = generate_fallback_bullets(
+                        fallback_parsed.get("title", ""),
+                        fallback_parsed.get("description", ""),
+                        features
+                    )
+                    validated = {
+                        "title": fallback_parsed.get("title", title),
+                        "description": fallback_parsed.get("description", ""),
+                        "bullets": fallback_bullets,
+                        "meta": fallback_parsed.get("meta", "")
+                    }
+                    logging.info("Used fallback bullets due to compliance failure")
+                else:
+                    raise validation_error
+            except Exception as fallback_error:
+                logging.error(f"Fallback generation failed: {fallback_error}")
+                raise HTTPException(status_code=500, detail=f"Description generation failed compliance validation: {validation_error}")
         
-        # Extract fields
-        generated_title = parsed.get("title", title)
-        description = parsed.get("description", "").strip()
-        bullets = parsed.get("bullets", [])
-        meta = parsed.get("meta", "")
+        # Extract fields from validated data
+        generated_title = validated.get("title", title)
+        description = validated.get("description", "").strip()
+        bullets = validated.get("bullets", [])
+        meta = validated.get("meta", "")
         
         # SEO evaluation
         seo = seo_evaluate(description, primary_keyword)
@@ -405,30 +432,89 @@ async def generate_batch_json(request: Dict[str, Any]):
                     ai_text, tokens_used, response_time = call_gemini_generate(
                         model=model,
                         prompt=prompt,
-                        temperature=0.2,
+                        temperature=0.8,  # Increased for more creative and persuasive content
                         cost_tracker=cost_tracker
                     )
                     
                     logging.info(f"AI response received: {ai_text[:200]}...")
                     
-                    # Parse and process
+                    # Parse and process with compliance validation
                     ai_text = safety_filter.sanitize_output(ai_text)
-                    parsed = safe_extract_json(ai_text)
+                    try:
+                        parsed = safe_extract_json(ai_text)
+                        validated = validate_and_ensure_compliance(parsed)
+                    except ValueError as validation_error:
+                        # If compliance validation fails, try to generate fallback bullets
+                        logging.warning(f"Compliance validation failed for product {row_dict.get('id', 'Unknown')}: {validation_error}")
+                        try:
+                            # Extract what we can from the response
+                            fallback_parsed = safe_extract_json(ai_text)
+                            if fallback_parsed.get("title") and fallback_parsed.get("description"):
+                                # Generate fallback bullets
+                                fallback_bullets = generate_fallback_bullets(
+                                    fallback_parsed.get("title", ""),
+                                    fallback_parsed.get("description", ""),
+                                    row_dict.get("features", "")
+                                )
+                                validated = {
+                                    "title": fallback_parsed.get("title", row_dict.get("title", "")),
+                                    "description": fallback_parsed.get("description", ""),
+                                    "bullets": fallback_bullets,
+                                    "meta": fallback_parsed.get("meta", "")
+                                }
+                                logging.info(f"Used fallback bullets for product {row_dict.get('id', 'Unknown')}")
+                            else:
+                                raise validation_error
+                        except Exception as fallback_error:
+                            logging.error(f"Fallback generation failed for product {row_dict.get('id', 'Unknown')}: {fallback_error}")
+                            errors.append({
+                                "row": idx,
+                                "id": row_dict.get("id", ""),
+                                "error": f"Description generation failed compliance validation: {validation_error}"
+                            })
+                            continue
                     
-                    logging.info(f"Parsed JSON: {parsed}")
+                    logging.info(f"Validated JSON: {validated}")
                     
                     # Validate that the generated content is in the requested language
-                    if language_code != "en" and parsed.get("description", ""):
+                    if language_code != "en" and validated.get("description", ""):
                         # Basic check: if description contains mostly English words, flag as potential issue
                         english_words = ["the", "and", "for", "with", "this", "that", "product", "quality", "features"]
-                        description_lower = parsed.get("description", "").lower()
+                        description_lower = validated.get("description", "").lower()
                         english_word_count = sum(1 for word in english_words if word in description_lower)
                         if english_word_count > 3:  # If more than 3 common English words, might be in English
                             logging.warning(f"Generated content for language {language_code} may contain English text")
                     
                 except Exception as gen_error:
-                    logging.error(f"Generation error for language {language_code}: {str(gen_error)}")
+                    error_msg = str(gen_error)
+                    logging.error(f"Generation error for product {row_dict.get('id', 'Unknown')}: {error_msg}")
                     logging.error(f"Error type: {type(gen_error).__name__}")
+                    
+                    # Enhanced error handling with specific error types
+                    if "QUOTA_EXCEEDED" in error_msg:
+                        logging.error("API quota exceeded - stopping batch processing")
+                        errors.append({
+                            "row": idx,
+                            "id": row_dict.get("id", ""),
+                            "error": "API quota exceeded - please try again later"
+                        })
+                        break  # Stop processing if quota exceeded
+                    elif "SAFETY_FILTER" in error_msg:
+                        logging.warning(f"Content blocked by safety filters for product: {row_dict.get('title', 'Unknown')}")
+                        errors.append({
+                            "row": idx,
+                            "id": row_dict.get("id", ""),
+                            "error": "Content blocked by safety filters - please review product details"
+                        })
+                        continue
+                    elif "NETWORK_ERROR" in error_msg:
+                        logging.warning(f"Network error for product: {row_dict.get('title', 'Unknown')} - will retry")
+                        errors.append({
+                            "row": idx,
+                            "id": row_dict.get("id", ""),
+                            "error": "Network error - please try again"
+                        })
+                        continue
                     
                     # Try a fallback with English if non-English fails
                     if language_code != "en":
@@ -443,7 +529,7 @@ async def generate_batch_json(request: Dict[str, Any]):
                             ai_text, tokens_used, response_time = call_gemini_generate(
                                 model=model,
                                 prompt=fallback_prompt,
-                                temperature=0.2,
+                                temperature=0.8,  # Increased for more creative and persuasive content
                                 cost_tracker=cost_tracker
                             )
                             
@@ -475,7 +561,7 @@ Return JSON:
                                 ai_text, tokens_used, response_time = call_gemini_generate(
                                     model=model,
                                     prompt=simple_prompt,
-                                    temperature=0.2,
+                                    temperature=0.8,  # Increased for more creative and persuasive content
                                     cost_tracker=cost_tracker
                                 )
                                 
@@ -502,18 +588,18 @@ Return JSON:
                 
                 result = {
                     "id": row_dict["id"],
-                    "product_name": parsed.get("title", row_dict["title"]),
+                    "product_name": validated.get("title", row_dict["title"]),
                     "category": row_dict["category"],
                     "audience": row_dict.get("audience", "general consumers"),
-                    "description": parsed.get("description", ""),
+                    "description": validated.get("description", ""),
                     "keywords": row_dict.get("primary_keyword", ""),
                     "features": row_dict["features"],  # Include original features
                     "tone": batch_tone,  # Include batch-level tone
                     "style_variation": batch_style,  # Include batch-level style variation
                     "languageCode": language_code,  # Include batch-level language
-                    "bullets": parsed.get("bullets", []),
-                    "meta": parsed.get("meta", ""),
-                    "seo_score": seo_evaluate(parsed.get("description", ""), row_dict.get("primary_keyword", "")),
+                    "bullets": validated.get("bullets", []),
+                    "meta": validated.get("meta", ""),
+                    "seo_score": seo_evaluate(validated.get("description", ""), row_dict.get("primary_keyword", "")),
                     "tokens_used": tokens_used,
                     "response_time": response_time
                 }
@@ -590,28 +676,55 @@ async def generate_batch(file: UploadFile = File(...), audience: str = Form(...)
                 ai_text, tokens_used, response_time = call_gemini_generate(
                     model=model,
                     prompt=prompt,
-                    temperature=0.2,
+                    temperature=0.8,  # Increased for more creative and persuasive content
                     cost_tracker=cost_tracker
                 )
                 
-                # Parse and process
+                # Parse and process with compliance validation
                 ai_text = safety_filter.sanitize_output(ai_text)
-                parsed = safe_extract_json(ai_text)
+                try:
+                    parsed = safe_extract_json(ai_text)
+                    validated = validate_and_ensure_compliance(parsed)
+                except ValueError as validation_error:
+                    # If compliance validation fails, try to generate fallback bullets
+                    logging.warning(f"Compliance validation failed for CSV product {row_dict.get('id', 'Unknown')}: {validation_error}")
+                    try:
+                        # Extract what we can from the response
+                        fallback_parsed = safe_extract_json(ai_text)
+                        if fallback_parsed.get("title") and fallback_parsed.get("description"):
+                            # Generate fallback bullets
+                            fallback_bullets = generate_fallback_bullets(
+                                fallback_parsed.get("title", ""),
+                                fallback_parsed.get("description", ""),
+                                row_dict.get("features", "")
+                            )
+                            validated = {
+                                "title": fallback_parsed.get("title", row_dict.get("title", "")),
+                                "description": fallback_parsed.get("description", ""),
+                                "bullets": fallback_bullets,
+                                "meta": fallback_parsed.get("meta", "")
+                            }
+                            logging.info(f"Used fallback bullets for CSV product {row_dict.get('id', 'Unknown')}")
+                        else:
+                            raise validation_error
+                    except Exception as fallback_error:
+                        logging.error(f"Fallback generation failed for CSV product {row_dict.get('id', 'Unknown')}: {fallback_error}")
+                        raise HTTPException(status_code=500, detail=f"CSV description generation failed compliance validation: {validation_error}")
                 
                 result = {
                     "id": row_dict["id"],
-                    "product_name": parsed.get("title", row_dict["title"]),
+                    "product_name": validated.get("title", row_dict["title"]),
                     "category": row_dict["category"],
                     "audience": row_dict["audience"],
-                    "description": parsed.get("description", ""),
+                    "description": validated.get("description", ""),
                     "keywords": row_dict.get("primary_keyword", ""),
                     "features": row_dict["features"],  # Include original features
                     "tone": "professional",  # Default tone for CSV batch
                     "style_variation": "standard",  # Default style for CSV batch
                     "languageCode": languageCode,  # Include language from CSV batch
-                    "bullets": parsed.get("bullets", []),
-                    "meta": parsed.get("meta", ""),
-                    "seo_score": seo_evaluate(parsed.get("description", ""), row_dict.get("primary_keyword", "")),
+                    "bullets": validated.get("bullets", []),
+                    "meta": validated.get("meta", ""),
+                    "seo_score": seo_evaluate(validated.get("description", ""), row_dict.get("primary_keyword", "")),
                     "tokens_used": tokens_used,
                     "response_time": response_time
                 }
@@ -714,28 +827,55 @@ async def regenerate_description(item: Dict[str, Any]):
         ai_text, tokens_used, response_time = call_gemini_generate(
             model=model,
             prompt=prompt,
-            temperature=0.2,
+            temperature=0.8,  # Increased for more creative and persuasive content
             cost_tracker=cost_tracker
         )
         
-        # Parse and process
+        # Parse and process with compliance validation
         ai_text = safety_filter.sanitize_output(ai_text)
-        parsed = safe_extract_json(ai_text)
+        try:
+            parsed = safe_extract_json(ai_text)
+            validated = validate_and_ensure_compliance(parsed)
+        except ValueError as validation_error:
+            # If compliance validation fails, try to generate fallback bullets
+            logging.warning(f"Compliance validation failed for regenerate product {row_dict.get('id', 'Unknown')}: {validation_error}")
+            try:
+                # Extract what we can from the response
+                fallback_parsed = safe_extract_json(ai_text)
+                if fallback_parsed.get("title") and fallback_parsed.get("description"):
+                    # Generate fallback bullets
+                    fallback_bullets = generate_fallback_bullets(
+                        fallback_parsed.get("title", ""),
+                        fallback_parsed.get("description", ""),
+                        row_dict.get("features", "")
+                    )
+                    validated = {
+                        "title": fallback_parsed.get("title", row_dict.get("title", "")),
+                        "description": fallback_parsed.get("description", ""),
+                        "bullets": fallback_bullets,
+                        "meta": fallback_parsed.get("meta", "")
+                    }
+                    logging.info(f"Used fallback bullets for regenerate product {row_dict.get('id', 'Unknown')}")
+                else:
+                    raise validation_error
+            except Exception as fallback_error:
+                logging.error(f"Fallback generation failed for regenerate product {row_dict.get('id', 'Unknown')}: {fallback_error}")
+                raise HTTPException(status_code=500, detail=f"Regenerate description failed compliance validation: {validation_error}")
         
         result = {
             "id": row_dict["id"],
-            "product_name": parsed.get("title", row_dict["title"]),
+            "product_name": validated.get("title", row_dict["title"]),
             "category": row_dict["category"],
             "audience": row_dict["audience"],
-            "description": parsed.get("description", ""),
+            "description": validated.get("description", ""),
             "keywords": row_dict["primary_keyword"],
             "features": row_dict["features"],  # Include original features
             "tone": row_dict["tone"],  # Include original tone
             "style_variation": row_dict["style_variation"],  # Include original style variation
             "languageCode": row_dict["languageCode"],  # Include original language
-            "bullets": parsed.get("bullets", []),
-            "meta": parsed.get("meta", ""),
-            "seo_score": seo_evaluate(parsed.get("description", ""), row_dict["primary_keyword"]),
+            "bullets": validated.get("bullets", []),
+            "meta": validated.get("meta", ""),
+            "seo_score": seo_evaluate(validated.get("description", ""), row_dict["primary_keyword"]),
             "tokens_used": tokens_used,
             "response_time": response_time,
             "regenerating": False

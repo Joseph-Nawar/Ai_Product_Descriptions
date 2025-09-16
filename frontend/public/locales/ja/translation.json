@@ -1,19 +1,19 @@
 {
   "pageTitles": {
     "dashboard": "言葉が収益になる場所",
-    "results": "TextGenieの説明が準備完了"
+    "results": "ProductGenieの説明が準備完了"
   },
   "navigation": {
     "documentation": "ドキュメント",
     "newCatalog": "新しいカタログ"
   },
   "hero": {
-    "subtitle": "製品仕様を説得力のあるコピーに変換し、訪問者を顧客に変えます。TextGenieに強力でSEOに富んだ説明でeコマースの願いを叶えさせましょう。"
+    "subtitle": "製品仕様を説得力のあるコピーに変換し、訪問者を顧客に変えます。ProductGenieに強力でSEOに富んだ説明でeコマースの願いを叶えさせましょう。"
   },
   "sections": {
     "styleConfiguration": {
       "title": "ジーニーの魔法のスタイルを選択",
-      "description": "TextGenieがすべての製品に使用する魔法の声とプラットフォームスタイルを設定します。",
+      "description": "ProductGenieがすべての製品に使用する魔法の声とプラットフォームスタイルを設定します。",
       "brandVoice": "ブランドボイス",
       "brandVoiceDescription": "すべての製品説明の個性と声",
       "platformStyle": "プラットフォームスタイル",
@@ -22,9 +22,9 @@
     "getStarted": {
       "title": "始める",
       "chooseVoice": "ジーニーの声を選択",
-      "description": "魔法の声とプラットフォームスタイルを選択して、TextGenieが製品説明をどのように変換するかを確認してください。下に製品を追加してeコマースの願いを叶えましょう！",
+      "description": "魔法の声とプラットフォームスタイルを選択して、ProductGenieが製品説明をどのように変換するかを確認してください。下に製品を追加してeコマースの願いを叶えましょう！",
       "readyToGrant": "願いを叶える準備はできましたか？",
-      "addProducts": "下に手動で製品を追加するか、CSVファイルをアップロードしてTextGenieに魔法をかけさせましょう！"
+      "addProducts": "下に手動で製品を追加するか、CSVファイルをアップロードしてProductGenieに魔法をかけさせましょう！"
     },
     "productWishlist": {
       "title": "あなたの製品ウィッシュリスト",
@@ -41,10 +41,10 @@
   },
   "choiceCards": {
     "title": "ウィッシュリストに製品を追加",
-    "subtitle": "TextGenieが魔法をかけるために製品を追加する方法を選択してください",
+    "subtitle": "ProductGenieが魔法をかけるために製品を追加する方法を選択してください",
     "csvUpload": {
       "title": "ウィッシュリストをアップロード",
-      "description": "カタログを迅速にスケールアップするのに最適です。製品データをアップロードして、TextGenieにすべての願いを一度に叶えさせましょう。",
+      "description": "カタログを迅速にスケールアップするのに最適です。製品データをアップロードして、ProductGenieにすべての願いを一度に叶えさせましょう。",
       "targetAudience": "ターゲットオーディエンス",
       "audiencePlaceholder": "例：住宅所有者、新しい親、ゲーマー",
       "button": "ウィッシュリストをアップロード",
@@ -87,7 +87,7 @@
     "exportResults": "結果をエクスポート"
   },
   "footer": {
-    "copyright": "TextGenie — 言葉が収益になる場所。"
+    "copyright": "ProductGenie — 言葉が収益になる場所。"
   },
   "modals": {
     "addProduct": {

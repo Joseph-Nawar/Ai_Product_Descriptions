@@ -1,19 +1,19 @@
 {
   "pageTitles": {
     "dashboard": "Where Words Become Revenue",
-    "results": "Your TextGenie Descriptions are Ready"
+    "results": "Your ProductGenie Descriptions are Ready"
   },
   "navigation": {
     "documentation": "Documentation",
     "newCatalog": "New Catalog"
   },
   "hero": {
-    "subtitle": "Transform your product specs into persuasive copy that converts visitors into customers. Let TextGenie grant your ecommerce wishes with powerful, SEO-rich descriptions."
+    "subtitle": "Transform your product specs into persuasive copy that converts visitors into customers. Let ProductGenie grant your ecommerce wishes with powerful, SEO-rich descriptions."
   },
   "sections": {
     "styleConfiguration": {
       "title": "Choose Your Genie's Magic Style",
-      "description": "Configure the magical voice and platform style that TextGenie will use for all your products.",
+      "description": "Configure the magical voice and platform style that ProductGenie will use for all your products.",
       "brandVoice": "Brand Voice",
       "brandVoiceDescription": "The personality and voice for all your product descriptions",
       "platformStyle": "Platform Style",
@@ -22,9 +22,9 @@
     "getStarted": {
       "title": "Get Started",
       "chooseVoice": "Choose Your Genie's Voice",
-      "description": "Select a magical voice and platform style to see how TextGenie transforms your product descriptions. Add products below to grant your ecommerce wishes!",
+      "description": "Select a magical voice and platform style to see how ProductGenie transforms your product descriptions. Add products below to grant your ecommerce wishes!",
       "readyToGrant": "Ready to grant your wishes?",
-      "addProducts": "Add products manually below or upload a CSV file to let TextGenie work its magic!"
+      "addProducts": "Add products manually below or upload a CSV file to let ProductGenie work its magic!"
     },
     "productWishlist": {
       "title": "Your Product Wishlist",
@@ -41,10 +41,10 @@
   },
   "choiceCards": {
     "title": "Add Products to Your Wishlist",
-    "subtitle": "Choose how you'd like to add products for TextGenie to work its magic",
+    "subtitle": "Choose how you'd like to add products for ProductGenie to work its magic",
     "csvUpload": {
       "title": "Upload Your Wishlist",
-      "description": "Perfect for scaling your catalog quickly. Upload your product data and let TextGenie grant all your wishes at once.",
+      "description": "Perfect for scaling your catalog quickly. Upload your product data and let ProductGenie grant all your wishes at once.",
       "targetAudience": "Target Audience",
       "audiencePlaceholder": "e.g., homeowners, new parents, gamers",
       "button": "Upload Wishlist",
@@ -87,7 +87,7 @@
     "exportResults": "Export Results"
   },
   "footer": {
-    "copyright": "TextGenie — Where Words Become Revenue."
+    "copyright": "ProductGenie — Where Words Become Revenue."
   },
   "modals": {
     "addProduct": {

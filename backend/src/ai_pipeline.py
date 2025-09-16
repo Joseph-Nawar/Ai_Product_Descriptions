@@ -167,8 +167,8 @@ def load_env(dry_run=False):
     
     # Get environment variables
     api_key = os.getenv("GEMINI_API_KEY")
-    model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    temp = float(os.getenv("DEFAULT_TEMPERATURE", 0.2))
+    model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+    temp = float(os.getenv("DEFAULT_TEMPERATURE", 0.8))
     output_base = os.getenv("OUTPUT_BASE", "src/outputs")
     
     # Cost control settings
@@ -204,12 +204,13 @@ def load_env(dry_run=False):
 def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_tracker=None):
     """Make Gemini API call with enhanced monitoring"""
     try:
-        # Configure generation parameters
+        # Configure generation parameters for enhanced creativity and quality
         generation_config = genai.types.GenerationConfig(
             temperature=temperature,
-            max_output_tokens=1000,
-            top_p=0.8,
-            top_k=40
+            max_output_tokens=2000,  # Increased for more detailed descriptions
+            top_p=0.9,  # Increased for more creative responses
+            top_k=50,   # Increased for better vocabulary diversity
+            candidate_count=1
         )
         
         # Add safety settings
@@ -270,9 +271,31 @@ def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_track
             raise Exception("Empty response from Gemini")
             
     except Exception as e:
+        error_msg = str(e)
+        
+        # Enhanced error categorization and logging
+        if "quota" in error_msg.lower() or "limit" in error_msg.lower():
+            error_type = "QUOTA_EXCEEDED"
+            detailed_msg = f"API quota exceeded: {error_msg}"
+        elif "safety" in error_msg.lower() or "blocked" in error_msg.lower():
+            error_type = "SAFETY_FILTER"
+            detailed_msg = f"Content blocked by safety filters: {error_msg}"
+        elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
+            error_type = "NETWORK_ERROR"
+            detailed_msg = f"Network/connection issue: {error_msg}"
+        elif "invalid" in error_msg.lower() or "malformed" in error_msg.lower():
+            error_type = "INVALID_REQUEST"
+            detailed_msg = f"Invalid request format: {error_msg}"
+        else:
+            error_type = "UNKNOWN_ERROR"
+            detailed_msg = f"Unexpected error: {error_msg}"
+        
+        # Log detailed error information
         if logger:
-            logger.log_error("api_call", "GEMINI_API_ERROR", str(e))
-        raise
+            logger.log_error("api_call", error_type, detailed_msg)
+        
+        # Re-raise with more context
+        raise Exception(f"Gemini API Error ({error_type}): {detailed_msg}")
 
 def get_style_instructions(style_variation):
     """Get platform-specific writing instructions"""
@@ -314,7 +337,7 @@ def get_style_instructions(style_variation):
 **CRITICAL:** Write the product description in the {style_variation.upper()} style, strictly adhering to the defined rules for that format."""
 
 def build_gemini_prompt(row):
-    """Build a Gemini-optimized prompt with safety considerations and language support"""
+    """Build a professional copywriter-optimized prompt with enhanced structure and emotional appeal"""
     features_list = row.get("features", "")
     features_formatted = "\n".join([f"- {x.strip()}" for x in features_list.split(";") if x.strip()])
     
@@ -346,65 +369,119 @@ def build_gemini_prompt(row):
     style_variation = row.get("style_variation", "amazon").lower()
     style_instructions = get_style_instructions(style_variation)
     
-    # Create a simpler prompt for non-English languages to avoid complexity issues
-    if language_code != "en":
-        # Use a very simple, direct approach for non-English languages
-        prompt = f"""Write a product description in {target_language} for this product:
+    # Enhanced professional copywriter prompt with product focus
+    if style_variation == "etsy":
+        # Etsy style - keep storytelling approach
+        prompt = f"""You are a world-class professional copywriter specializing in e-commerce product descriptions. Your expertise lies in creating compelling, persuasive content that drives conversions and builds emotional connections with customers.
 
-Product Name: {row.get("title", "")}
-Features: {features_formatted}
-Target Audience: {audience}
-Keyword: {row.get("primary_keyword", "")}
+**YOUR MISSION:** Transform this product into an irresistible offer that speaks directly to the customer's desires and solves their problems.
 
-Requirements:
-- Write everything in {target_language} only
-- Create a catchy title
-- Write a description paragraph
-- List 3 benefits
-- Write a short meta description
+**PRODUCT INFORMATION:**
+- **Product Name:** {row.get("title", "")}
+- **Key Features:** {features_formatted}
+- **Target Audience:** {audience}
+- **Primary Keyword:** {row.get("primary_keyword", "")}
+- **Language:** {target_language}
 
-Return this JSON format:
+**COPYWRITING STRATEGY:**
+1. **EMOTIONAL HOOK:** Start with a compelling title that creates desire and urgency
+2. **PROBLEM-SOLUTION NARRATIVE:** Frame the product as the solution to customer pain points
+3. **SENSORY DETAILS:** Use vivid, sensory language that helps customers imagine using the product
+4. **SOCIAL PROOF:** Imply quality and desirability through confident, authoritative language
+5. **CALL TO ACTION:** Create urgency and desire to purchase
+
+**STRUCTURE REQUIREMENTS:**
+- **Compelling Title:** 5-8 words that create immediate interest and include the primary keyword
+- **Engaging Description:** 2-3 sentences that paint a picture of the customer's improved life
+- **Key Benefits:** 3-4 bullet points focusing on emotional benefits and outcomes, not just features
+- **SEO Meta Description:** 140 characters optimized for search engines
+
+**TONE GUIDELINES:**
+- **Professional yet Enthusiastic:** Confident and knowledgeable without being pushy
+- **Customer-Centric:** Focus on "you" and "your" to make it personal
+- **Benefit-Focused:** Always explain WHY the feature matters to the customer
+- **Sensory Rich:** Use words that evoke sight, touch, feel, and experience
+
+**CRITICAL REQUIREMENTS:**
+- Write entirely in {target_language} (no English text)
+- Include the primary keyword naturally 1-2 times
+- Focus on emotional benefits and outcomes, not technical specifications
+- Use power words that create desire: "transform," "enhance," "discover," "experience," "unlock"
+- Create urgency with words like "now," "today," "immediate," "instant"
+- Avoid generic phrases like "high quality" or "great product"
+- **YOU MUST PROVIDE 3 BULLET POINTS IN THE 'bullets' ARRAY. FAILURE TO DO SO WILL RESULT IN AN INCOMPLETE LISTING.**
+- **YOUR RESPONSE MUST BE VALID JSON ONLY - NO ADDITIONAL TEXT BEFORE OR AFTER THE JSON OBJECT.**
+- **THE 'bullets' ARRAY MUST CONTAIN EXACTLY 3 STRINGS - NO MORE, NO LESS.**
+
+**OUTPUT FORMAT (JSON ONLY):**
 {{
-  "title": "title in {target_language}",
-  "description": "description in {target_language}",
-  "bullets": ["benefit 1 in {target_language}", "benefit 2 in {target_language}", "benefit 3 in {target_language}"],
-  "meta": "meta description in {target_language}"
-}}"""
-    else:
-        # Use the original complex prompt for English
-        prompt = f"""You are a professional copywriter for the e-commerce market in {target_language}. The user will provide product details. You MUST generate the product description entirely in {target_language}. Do not translate proper nouns (product names, brand names) or technical specifications. Adapt the tone, cultural references, and marketing style to be appropriate for a {target_language}-speaking audience. The grammar and fluency must be perfect.
-
-**CRITICAL LANGUAGE REQUIREMENT:** All text you generate (title, description, bullets, meta) MUST be written in {target_language}. Do not include any English text in your response.
-
-**Product Details:**
-* **Title:** {row.get("title", "")}
-* **Key Features:** {features_formatted}
-* **Target Audience:** {audience}
-* **Primary Keyword:** {row.get("primary_keyword", "")}
-
-{style_instructions}
-
-**General Instructions:**
-- Write in a tone that would appeal directly to the specified target audience.
-- Focus on the **benefits** of the features, not just the features themselves. Explain how the product improves the customer's life.
-- Include the primary keyword naturally 1-2 times in the description.
-- Generate a catchy, attention-grabbing title.
-- Write an engaging introductory paragraph.
-- Create a bulleted list of 3-5 key benefits.
-- Ensure all content is appropriate for general audiences.
-- Avoid any claims that cannot be substantiated.
-
-**Output Format (MUST BE IN JSON AND IN {target_language.upper()}):**
-{{
-  "title": "Your catchy product title here in {target_language}",
-  "description": "Your engaging introductory paragraph here in {target_language}. Speak directly to the target audience. Include the primary keyword naturally.",
+  "title": "Compelling 5-8 word title with primary keyword in {target_language}",
+  "description": "2-3 sentence engaging paragraph focusing on customer transformation and emotional benefits in {target_language}",
   "bullets": [
-    "Benefit 1: Explain how a feature helps the customer in {target_language}",
-    "Benefit 2: Explain how a feature helps the customer in {target_language}", 
-    "Benefit 3: Explain how a feature helps the customer in {target_language}"
+    "Benefit-focused bullet point 1 emphasizing customer outcome in {target_language}",
+    "Benefit-focused bullet point 2 emphasizing customer outcome in {target_language}",
+    "Benefit-focused bullet point 3 emphasizing customer outcome in {target_language}"
   ],
-  "meta": "140-character meta description for SEO in {target_language}"
-}}"""
+  "meta": "140-character SEO-optimized meta description with primary keyword in {target_language}"
+}}
+
+**REMEMBER:** You're not just describing a product - you're selling a dream, a solution, and a better version of the customer's life. Make them feel the transformation this product will bring."""
+    else:
+        # All other styles - focus on product features and specifications
+        prompt = f"""You are a professional e-commerce copywriter specializing in clear, informative product descriptions that drive sales through accurate feature presentation and benefit communication.
+
+**YOUR MISSION:** Create compelling product descriptions that clearly communicate what the product is, what it does, and why customers should buy it.
+
+**PRODUCT INFORMATION:**
+- **Product Name:** {row.get("title", "")}
+- **Key Features:** {features_formatted}
+- **Target Audience:** {audience}
+- **Primary Keyword:** {row.get("primary_keyword", "")}
+- **Language:** {target_language}
+
+**DESCRIPTION STRATEGY:**
+1. **PRODUCT-FOCUSED:** Describe the actual product, its materials, specifications, and functionality
+2. **FEATURE-BENEFIT CONNECTION:** Explain how each feature benefits the customer
+3. **CLEAR SPECIFICATIONS:** Include relevant technical details, dimensions, materials, etc.
+4. **PRACTICAL BENEFITS:** Focus on real-world uses and advantages
+5. **CONFIDENT PRESENTATION:** Present the product professionally without excessive hype
+
+**STRUCTURE REQUIREMENTS:**
+- **Clear Title:** 5-8 words that accurately describe the product and include the primary keyword
+- **Informative Description:** 2-3 sentences that describe what the product is and what it does
+- **Feature Benefits:** 3 bullet points explaining specific features and their practical benefits
+- **SEO Meta Description:** 140 characters optimized for search engines
+
+**TONE GUIDELINES:**
+- **Professional and Informative:** Clear, confident, and knowledgeable
+- **Product-Centric:** Focus on the product itself, not abstract concepts
+- **Benefit-Oriented:** Explain practical advantages and uses
+- **Specification-Rich:** Include relevant technical details when appropriate
+
+**CRITICAL REQUIREMENTS:**
+- Write entirely in {target_language} (no English text)
+- Include the primary keyword naturally 1-2 times
+- Focus on PRODUCT FEATURES and SPECIFICATIONS, not abstract transformation
+- Describe what the product IS and what it DOES
+- Use concrete, specific language about materials, performance, and functionality
+- Avoid vague emotional language like "transform your life" or "unlock potential"
+- **YOU MUST PROVIDE 3 BULLET POINTS IN THE 'bullets' ARRAY. FAILURE TO DO SO WILL RESULT IN AN INCOMPLETE LISTING.**
+- **YOUR RESPONSE MUST BE VALID JSON ONLY - NO ADDITIONAL TEXT BEFORE OR AFTER THE JSON OBJECT.**
+- **THE 'bullets' ARRAY MUST CONTAIN EXACTLY 3 STRINGS - NO MORE, NO LESS.**
+
+**OUTPUT FORMAT (JSON ONLY):**
+{{
+  "title": "Clear 5-8 word product title with primary keyword in {target_language}",
+  "description": "2-3 sentence informative paragraph describing the product and its functionality in {target_language}",
+  "bullets": [
+    "Specific feature with practical benefit explanation in {target_language}",
+    "Specific feature with practical benefit explanation in {target_language}",
+    "Specific feature with practical benefit explanation in {target_language}"
+  ],
+  "meta": "140-character SEO-optimized meta description with primary keyword in {target_language}"
+}}
+
+**REMEMBER:** Describe the actual product - its features, materials, specifications, and practical benefits. Focus on what it IS and what it DOES, not abstract emotional transformation."""
     
     return prompt
 

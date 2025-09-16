@@ -6,7 +6,7 @@ import ChoiceCards from "../components/ChoiceCards";
 import ToneSelector from "../components/ToneSelector";
 import StyleSelector from "../components/StyleSelector";
 import LanguageSelector from "../components/LanguageSelector";
-import TextGenieLogo from "../components/TextGenieLogo";
+import ProductGenieLogo from "../components/ProductGenieLogo";
 import { Button, Banner, Spinner, StatusAnnouncer } from "../components/UI";
 import { ProductInput } from "../types";
 import { generateDescriptions } from "../api/generate";

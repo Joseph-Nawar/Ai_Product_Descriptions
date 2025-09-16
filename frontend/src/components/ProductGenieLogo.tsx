@@ -1,11 +1,11 @@
 import React from 'react';
 
-interface TextGenieLogoProps {
+interface ProductGenieLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
-export default function TextGenieLogo({ size = 'md', className = '' }: TextGenieLogoProps) {
+export default function ProductGenieLogo({ size = 'md', className = '' }: ProductGenieLogoProps) {
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-10 h-10',
@@ -25,8 +25,8 @@ export default function TextGenieLogo({ size = 'md', className = '' }: TextGenie
 
   return (
     <img 
-      src="/textgenie-logo.png" 
-      alt="TextGenie Logo" 
+      src="/productgenie-logo.png" 
+      alt="ProductGenie Logo" 
       className={`${sizeClasses[size]} ${className}`}
       width={currentSize}
       height={currentSize}

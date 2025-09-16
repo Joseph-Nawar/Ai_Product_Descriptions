@@ -10,7 +10,7 @@ export default {
       },
       colors: {
         primary: {
-          DEFAULT: '#2563eb', // blue-600 - matches TextGenie blue
+          DEFAULT: '#2563eb', // blue-600 - matches ProductGenie blue
           dark: '#1d4ed8',   // blue-700
         },
         secondary: {
