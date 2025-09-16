@@ -1,6 +1,6 @@
 // frontend/src/auth/AuthProvider.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { auth, googleProvider } from "./firebase";
+import { auth, googleProvider, isFirebaseEnabled } from "./firebase";
 import { 
   onIdTokenChanged, 
   signInWithPopup, 
@@ -18,6 +18,7 @@ type AuthCtx = {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signOutUser: () => Promise<void>;
+  isFirebaseEnabled: boolean;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -27,6 +28,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseEnabled) {
+      setLoading(false);
+      return;
+    }
+
     return onIdTokenChanged(auth, async (u: User | null) => {
       setUser(u);
       if (u) {
@@ -40,18 +46,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!isFirebaseEnabled) {
+      throw new Error('Firebase authentication is not configured');
+    }
     await signInWithPopup(auth, googleProvider);
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    if (!isFirebaseEnabled) {
+      throw new Error('Firebase authentication is not configured');
+    }
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
+    if (!isFirebaseEnabled) {
+      throw new Error('Firebase authentication is not configured');
+    }
     await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const signOutUser = async () => {
+    if (!isFirebaseEnabled) {
+      setIdToken(null);
+      return;
+    }
     await signOut(auth);
     setIdToken(null);
   };
@@ -62,7 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signInWithGoogle, 
     signInWithEmail,
     signUpWithEmail,
-    signOutUser 
+    signOutUser,
+    isFirebaseEnabled: Boolean(isFirebaseEnabled)
   }), [user, loading]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 };
