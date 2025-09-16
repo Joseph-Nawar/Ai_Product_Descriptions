@@ -48,7 +48,29 @@ Create `frontend/.env` with:
 VITE_API_BASE_URL=http://localhost:8000
 # Set to "true" to use the frontend mock generator until backend is live
 VITE_USE_MOCK=true
+
+# Firebase Web SDK Configuration
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_APP_ID=your_firebase_app_id
+VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
 ```
+
+## Authentication
+
+This application uses Firebase Authentication with Google Sign-In:
+
+- Users must authenticate via Google to access the application
+- Firebase ID tokens are automatically attached to API requests
+- Protected routes redirect unauthenticated users to `/login`
+
+### Firebase Setup
+
+1. Create a Firebase project at https://console.firebase.google.com
+2. Enable Authentication → Sign-in method → Google
+3. Add your domains to Authorized domains (localhost, your production domain)
+4. Copy the Web app config values to your `.env` file
 
 - `VITE_API_BASE_URL` – Base URL of the backend API (no trailing slash).  
 - `VITE_USE_MOCK` – When `"true"`, the app uses a local mock generator for `/generate` and `/download/:id`.
