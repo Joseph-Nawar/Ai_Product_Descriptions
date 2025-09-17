@@ -2,6 +2,41 @@
 
 A professional, production-ready AI pipeline that generates compelling e-commerce product descriptions using Google Gemini. This backend system provides enterprise-grade logging, cost control, and safety measures for scalable product description generation.
 
+## Lemon Squeezy – Local Testing (Vite + Express)
+
+This setup allows you to test Lemon Squeezy webhooks locally with your Vite/React frontend and a minimal Express webhook server.
+
+### Quick Start
+
+1. **Start both servers locally:**
+   ```bash
+   npm run dev:all
+   ```
+   - Frontend: [http://localhost:5173](http://localhost:5173)
+   - Webhook server: [http://localhost:3001/api/webhook](http://localhost:3001/api/webhook)
+
+2. **Expose the webhook server publicly for Lemon Squeezy with ngrok (or Cloudflare Tunnel):**
+   ```bash
+   ngrok http 3001
+   ```
+   Copy the **https** URL (e.g., `https://xyz.ngrok-free.app`).
+
+3. **In the Lemon Squeezy dashboard (Test Mode ON):**
+   - Create a webhook: **Settings → Webhooks → New**
+   - **Callback URL**: `https://<your-ngrok-subdomain>/api/webhook`
+   - **Signing Secret**: set a value and put it in `.env` as `LEMON_SQUEEZY_WEBHOOK_SECRET`
+   - Select events (e.g., `order_created`, `subscription_created`)
+
+4. **Send a test event (or do a test checkout) and watch the terminal / ngrok inspector.** Expect `200 OK` and log lines like `[LS WEBHOOK OK]`.
+
+5. **Notes:**
+   - This setup is **for testing Lemon Squeezy locally** only.
+   - The Vite app stays on port **5173**; webhooks are received on **3001**.
+   - The server requires **raw body** for signature verification—do not add JSON middleware to the webhook route.
+   - Tunnel URLs change on every ngrok restart unless you use a reserved domain.
+
+---
+
 ## 🚀 Features
 
 - **AI-Powered Content Generation**: Uses Google Gemini 1.5 Flash for high-quality product descriptions

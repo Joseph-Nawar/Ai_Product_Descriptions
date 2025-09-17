@@ -3,10 +3,17 @@ import React from "react";
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "tertiary";
   glowing?: boolean;
+  size?: "sm" | "md" | "lg";
 };
 
-export function Button({ variant = "primary", glowing = false, className = "", children, ...rest }: ButtonProps) {
-  const baseStyles = "relative rounded-xl px-5 py-2.5 font-semibold transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed transform disabled:transform-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900";
+export function Button({ variant = "primary", glowing = false, size = "md", className = "", children, ...rest }: ButtonProps) {
+  const sizeStyles = {
+    sm: "px-3 py-1.5 text-sm",
+    md: "px-5 py-2.5 text-base",
+    lg: "px-6 py-3 text-lg",
+  };
+
+  const baseStyles = `relative rounded-xl font-semibold transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed transform disabled:transform-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${sizeStyles[size]}`;
 
   const variantStyles = {
     primary: `text-white shadow-lg hover:shadow-xl bg-[length:200%_auto] bg-gradient-to-r from-primary via-secondary to-primary
@@ -49,23 +56,23 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   );
 }
 
-export function Banner({ type = "info", children }: { type?: "info" | "success" | "error"; children: React.ReactNode }) {
+export function Banner({ type = "info", children, className = "" }: { type?: "info" | "success" | "error"; children: React.ReactNode; className?: string }) {
   const styles = {
     info: "bg-blue-500/10 text-blue-300 border-blue-500/30",
     success: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
     error: "bg-red-500/10 text-red-300 border-red-500/30",
   }[type];
-  return <div className={`border rounded-lg p-4 text-center font-medium shadow-lg backdrop-blur-sm ${styles}`}>{children}</div>;
+  return <div className={`border rounded-lg p-4 text-center font-medium shadow-lg backdrop-blur-sm ${styles} ${className}`}>{children}</div>;
 }
 
-export function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+export function Spinner({ size = "md", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
   const sizes = {
     sm: "h-4 w-4",
     md: "h-5 w-5",
     lg: "h-8 w-8",
   };
   return (
-    <div className={`${sizes[size]} rounded-full border-2 border-white/30 border-t-white animate-spin`}></div>
+    <div className={`${sizes[size]} rounded-full border-2 border-white/30 border-t-white animate-spin ${className}`}></div>
   );
 }
 

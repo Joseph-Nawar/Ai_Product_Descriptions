@@ -3,10 +3,12 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import ExportButtons from "../components/ExportButtons";
 import AnalysisPanel from "../components/AnalysisPanel";
+import { UpgradePrompt } from "../components/UpgradePrompt";
 import { Banner, Button } from "../components/UI";
 import { BatchResponse, GeneratedItem } from "../types";
 import { fetchBatch, regenerateDescription } from "../api/generate";
 import { handleApiError } from "../api/client";
+import { usePaymentContext } from "../contexts/PaymentContext";
 
 // Lazy load the heavy EditableTable component
 const EditableTable = React.lazy(() => import("../components/EditableTable"));
@@ -23,6 +25,7 @@ const TableLoadingFallback = () => (
 
 export default function Results() {
   const { t } = useTranslation();
+  const { payment } = usePaymentContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [search] = useSearchParams();
@@ -41,6 +44,21 @@ export default function Results() {
   }, [items, selectedItem]);
   
   const handleRegenerate = async (itemToRegenerate: GeneratedItem) => {
+    // Check if user has enough credits for regeneration
+    const creditsNeeded = 1;
+    if (!payment.canGenerate(creditsNeeded)) {
+      setError("Insufficient credits to regenerate. Please upgrade your plan or purchase more credits.");
+      payment.setShowUpgradePrompt(true);
+      return;
+    }
+
+    // Try to consume credits
+    const canProceed = await payment.handleGeneration(creditsNeeded);
+    if (!canProceed) {
+      setError("Unable to process regeneration. Please check your credit balance.");
+      return;
+    }
+
     // Set loading state for the specific item
     setItems((currentItems: GeneratedItem[]) => currentItems.map(item => 
       item.id === itemToRegenerate.id ? { ...item, regenerating: true } : item
@@ -58,6 +76,10 @@ export default function Results() {
       }
     } catch (e) {
       setError(handleApiError(e));
+      // Refund credits on error
+      if (payment.creditBalance) {
+        payment.updateCredits(payment.creditBalance.current_credits + creditsNeeded, 'set');
+      }
       // Remove loading state on error
        setItems((currentItems: GeneratedItem[]) => currentItems.map(item => 
         item.id === itemToRegenerate.id ? { ...item, regenerating: false } : item
@@ -107,6 +129,13 @@ export default function Results() {
       </div>
 
       {error && <Banner type="error">{error}</Banner>}
+
+      {/* Upgrade Prompt */}
+      <UpgradePrompt 
+        threshold={75}
+        variant="banner"
+        onUpgrade={() => navigate('/pricing')}
+      />
 
       {!error && items.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

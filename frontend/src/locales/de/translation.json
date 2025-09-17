@@ -1,0 +1,105 @@
+{
+  "pageTitles": {
+    "dashboard": "Wo Worte zu Einnahmen Werden",
+    "results": "Ihre ProductGenie-Beschreibungen sind Bereit"
+  },
+  "navigation": {
+    "documentation": "Dokumentation",
+    "newCatalog": "Neuer Katalog"
+  },
+  "hero": {
+    "subtitle": "Verwandeln Sie Ihre Produktspezifikationen in überzeugende Texte, die Besucher in Kunden verwandeln. Lassen Sie ProductGenie Ihre E-Commerce-Wünsche mit kraftvollen, SEO-reichen Beschreibungen erfüllen."
+  },
+  "sections": {
+    "styleConfiguration": {
+      "title": "Wählen Sie den Magischen Stil Ihres Genies",
+      "description": "Konfigurieren Sie die magische Stimme und den Plattformstil, den ProductGenie für alle Ihre Produkte verwenden wird.",
+      "brandVoice": "Markenstimme",
+      "brandVoiceDescription": "Die Persönlichkeit und Stimme für alle Ihre Produktbeschreibungen",
+      "platformStyle": "Plattformstil",
+      "platformStyleDescription": "Plattformspezifischer Schreibstil für alle Beschreibungen"
+    },
+    "getStarted": {
+      "title": "Loslegen",
+      "chooseVoice": "Wählen Sie die Stimme Ihres Genies",
+      "description": "Wählen Sie eine magische Stimme und einen Plattformstil, um zu sehen, wie ProductGenie Ihre Produktbeschreibungen transformiert. Fügen Sie unten Produkte hinzu, um Ihre E-Commerce-Wünsche zu erfüllen!",
+      "readyToGrant": "Bereit, Ihre Wünsche zu erfüllen?",
+      "addProducts": "Fügen Sie unten manuell Produkte hinzu oder laden Sie eine CSV-Datei hoch, damit ProductGenie seine Magie wirken lassen kann!"
+    },
+    "productWishlist": {
+      "title": "Ihre Produkt-Wunschliste",
+      "empty": "Ihre Wunschliste ist leer",
+      "emptyDescription": "Fügen Sie oben Produkte hinzu, um Ihre Wünsche wahr werden zu lassen.",
+      "clearWishlist": "Wunschliste Löschen"
+    },
+    "inputMethods": {
+      "uploadMore": "Mehr Produkte Hochladen",
+      "uploadMoreDescription": "Fügen Sie mehr Produkte zu Ihrem bestehenden Katalog hinzu.",
+      "addMore": "Mehr Produkte Manuell Hinzufügen",
+      "addMoreDescription": "Fügen Sie einzelne Produkte zu Ihrem bestehenden Batch hinzu."
+    }
+  },
+  "choiceCards": {
+    "title": "Produkte zu Ihrer Wunschliste Hinzufügen",
+    "subtitle": "Wählen Sie, wie Sie Produkte hinzufügen möchten, damit ProductGenie seine Magie wirken lassen kann",
+    "csvUpload": {
+      "title": "Ihre Wunschliste Hochladen",
+      "description": "Perfekt für die schnelle Skalierung Ihres Katalogs. Laden Sie Ihre Produktdaten hoch und lassen Sie ProductGenie alle Ihre Wünsche auf einmal erfüllen.",
+      "targetAudience": "Zielgruppe",
+      "audiencePlaceholder": "z.B. Hausbesitzer, neue Eltern, Gamer",
+      "button": "Wunschliste Hochladen",
+      "smartProcessing": {
+        "title": "Intelligente CSV-Verarbeitung:",
+        "description": "Erkennt automatisch Produktnamen und Kategorien aus Ihren CSV-Headern",
+        "maxSize": "Max. Größe: 10MB"
+      }
+    },
+    "manualEntry": {
+      "title": "Einzelne Wünsche Hinzufügen",
+      "description": "Ideal zum Testen verschiedener magischer Stile und zum präzisen Hinzufügen von Produkten einzeln.",
+      "button": "Einen Wunsch Äußern",
+      "perfectFor": {
+        "title": "Perfekt für:",
+        "testing": "Testen verschiedener magischer Stimmen",
+        "adding": "Hinzufügen von 1-5 Produkten",
+        "precision": "Präzise Wunscherfüllung"
+      }
+    },
+    "helpText": "Sie können später immer mehr Produkte mit der anderen Methode hinzufügen"
+  },
+  "forms": {
+    "languageSelector": {
+      "label": "Ausgabesprache",
+      "description": "Wählen Sie die Sprache für generierte Beschreibungen"
+    },
+    "batchLanguageSelector": {
+      "label": "Beschreibungen generieren in:",
+      "description": "Sprache für alle Beschreibungen in diesem Batch"
+    }
+  },
+  "buttons": {
+    "generate": "Beschreibungen Generieren",
+    "generating": "Generierung...",
+    "addProducts": "Produkte zum Generieren Hinzufügen"
+  },
+  "results": {
+    "descriptionsGenerated": "Beschreibungen generiert. Bearbeiten Sie unten und exportieren Sie Ihre Ergebnisse.",
+    "exportResults": "Ergebnisse Exportieren"
+  },
+  "footer": {
+    "copyright": "ProductGenie — Wo Worte zu Einnahmen Werden."
+  },
+  "modals": {
+    "addProduct": {
+      "title": "Produkt Manuell Hinzufügen"
+    }
+  },
+  "languages": {
+    "en": "Englisch",
+    "es": "Spanisch",
+    "fr": "Französisch",
+    "de": "Deutsch",
+    "ja": "Japanisch",
+    "zh": "Chinesisch"
+  }
+}

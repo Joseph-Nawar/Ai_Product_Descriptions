@@ -1,0 +1,31 @@
+{
+  "name": "lemon-squeezy-webhook-testing",
+  "version": "1.0.0",
+  "description": "Lemon Squeezy webhook testing setup with Vite frontend and Express webhook server",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "server": "node server/index.js",
+    "server:watch": "nodemon --watch server --ext js --exec \"node server/index.js\"",
+    "dev:all": "npm-run-all -p dev server:watch"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "npm-run-all": "^4.1.5"
+  },
+  "keywords": [
+    "lemon-squeezy",
+    "webhooks",
+    "testing",
+    "express",
+    "vite"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
+
+

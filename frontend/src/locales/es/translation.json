@@ -1,0 +1,105 @@
+{
+  "pageTitles": {
+    "dashboard": "Donde las Palabras se Convierten en Ingresos",
+    "results": "Tus Descripciones de ProductGenie Están Listas"
+  },
+  "navigation": {
+    "documentation": "Documentación",
+    "newCatalog": "Nuevo Catálogo"
+  },
+  "hero": {
+    "subtitle": "Transforma las especificaciones de tus productos en copia persuasiva que convierte visitantes en clientes. Deja que ProductGenie cumpla tus deseos de ecommerce con descripciones poderosas y ricas en SEO."
+  },
+  "sections": {
+    "styleConfiguration": {
+      "title": "Elige el Estilo Mágico de tu Genio",
+      "description": "Configura la voz mágica y el estilo de plataforma que ProductGenie usará para todos tus productos.",
+      "brandVoice": "Voz de Marca",
+      "brandVoiceDescription": "La personalidad y voz para todas tus descripciones de productos",
+      "platformStyle": "Estilo de Plataforma",
+      "platformStyleDescription": "Estilo de escritura específico de plataforma para todas las descripciones"
+    },
+    "getStarted": {
+      "title": "Comenzar",
+      "chooseVoice": "Elige la Voz de tu Genio",
+      "description": "Selecciona una voz mágica y estilo de plataforma para ver cómo ProductGenie transforma tus descripciones de productos. ¡Agrega productos abajo para cumplir tus deseos de ecommerce!",
+      "readyToGrant": "¿Listo para cumplir tus deseos?",
+      "addProducts": "¡Agrega productos manualmente abajo o sube un archivo CSV para que ProductGenie haga su magia!"
+    },
+    "productWishlist": {
+      "title": "Tu Lista de Deseos de Productos",
+      "empty": "Tu lista de deseos está vacía",
+      "emptyDescription": "Agrega productos arriba para hacer realidad tus deseos.",
+      "clearWishlist": "Limpiar Lista de Deseos"
+    },
+    "inputMethods": {
+      "uploadMore": "Subir Más Productos",
+      "uploadMoreDescription": "Agrega más productos a tu catálogo existente.",
+      "addMore": "Agregar Más Productos Manualmente",
+      "addMoreDescription": "Agrega productos individuales a tu lote existente."
+    }
+  },
+  "choiceCards": {
+    "title": "Agregar Productos a Tu Lista de Deseos",
+    "subtitle": "Elige cómo quieres agregar productos para que ProductGenie haga su magia",
+    "csvUpload": {
+      "title": "Subir Tu Lista de Deseos",
+      "description": "Perfecto para escalar tu catálogo rápidamente. Sube los datos de tus productos y deja que ProductGenie cumpla todos tus deseos de una vez.",
+      "targetAudience": "Audiencia Objetivo",
+      "audiencePlaceholder": "ej., propietarios de viviendas, nuevos padres, jugadores",
+      "button": "Subir Lista de Deseos",
+      "smartProcessing": {
+        "title": "Procesamiento Inteligente de CSV:",
+        "description": "Detecta automáticamente nombres de productos y categorías de los encabezados de tu CSV",
+        "maxSize": "Tamaño máximo: 10MB"
+      }
+    },
+    "manualEntry": {
+      "title": "Agregar Deseos Individuales",
+      "description": "Ideal para probar diferentes estilos mágicos y agregar productos uno por uno con precisión.",
+      "button": "Hacer un Deseo",
+      "perfectFor": {
+        "title": "Perfecto para:",
+        "testing": "Probar diferentes voces mágicas",
+        "adding": "Agregar 1-5 productos",
+        "precision": "Creación precisa de deseos"
+      }
+    },
+    "helpText": "Siempre puedes agregar más productos más tarde usando el otro método"
+  },
+  "forms": {
+    "languageSelector": {
+      "label": "Idioma de Salida",
+      "description": "Selecciona el idioma para las descripciones generadas"
+    },
+    "batchLanguageSelector": {
+      "label": "Generar descripciones en:",
+      "description": "Idioma para todas las descripciones en este lote"
+    }
+  },
+  "buttons": {
+    "generate": "Generar Descripciones",
+    "generating": "Generando...",
+    "addProducts": "Agregar Productos para Generar"
+  },
+  "results": {
+    "descriptionsGenerated": "descripciones generadas. Edita abajo y exporta tus resultados.",
+    "exportResults": "Exportar Resultados"
+  },
+  "footer": {
+    "copyright": "ProductGenie — Donde las Palabras se Convierten en Ingresos."
+  },
+  "modals": {
+    "addProduct": {
+      "title": "Agregar Producto Manualmente"
+    }
+  },
+  "languages": {
+    "en": "Inglés",
+    "es": "Español",
+    "fr": "Francés",
+    "de": "Alemán",
+    "ja": "Japonés",
+    "zh": "Chino"
+  }
+}

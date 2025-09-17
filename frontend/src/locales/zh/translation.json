@@ -1,0 +1,105 @@
+{
+  "pageTitles": {
+    "dashboard": "文字变收益的地方",
+    "results": "您的ProductGenie描述已准备就绪"
+  },
+  "navigation": {
+    "documentation": "文档",
+    "newCatalog": "新目录"
+  },
+  "hero": {
+    "subtitle": "将您的产品规格转化为有说服力的文案，将访客转化为客户。让ProductGenie用强大、富含SEO的描述来实现您的电商愿望。"
+  },
+  "sections": {
+    "styleConfiguration": {
+      "title": "选择您精灵的魔法风格",
+      "description": "配置ProductGenie将用于所有产品的魔法声音和平台风格。",
+      "brandVoice": "品牌声音",
+      "brandVoiceDescription": "所有产品描述的个性和声音",
+      "platformStyle": "平台风格",
+      "platformStyleDescription": "所有描述的特定平台写作风格"
+    },
+    "getStarted": {
+      "title": "开始",
+      "chooseVoice": "选择您精灵的声音",
+      "description": "选择魔法声音和平台风格，看看ProductGenie如何转换您的产品描述。在下面添加产品来实现您的电商愿望！",
+      "readyToGrant": "准备好实现您的愿望了吗？",
+      "addProducts": "在下面手动添加产品或上传CSV文件让ProductGenie施展魔法！"
+    },
+    "productWishlist": {
+      "title": "您的产品愿望清单",
+      "empty": "您的愿望清单是空的",
+      "emptyDescription": "在上面添加产品来实现您的愿望。",
+      "clearWishlist": "清空愿望清单"
+    },
+    "inputMethods": {
+      "uploadMore": "上传更多产品",
+      "uploadMoreDescription": "向您现有的目录添加更多产品。",
+      "addMore": "手动添加更多产品",
+      "addMoreDescription": "向您现有的批次添加个别产品。"
+    }
+  },
+  "choiceCards": {
+    "title": "向您的愿望清单添加产品",
+    "subtitle": "选择您希望如何添加产品让ProductGenie施展魔法",
+    "csvUpload": {
+      "title": "上传您的愿望清单",
+      "description": "非常适合快速扩展您的目录。上传您的产品数据，让ProductGenie一次性实现所有愿望。",
+      "targetAudience": "目标受众",
+      "audiencePlaceholder": "例如：房主、新父母、游戏玩家",
+      "button": "上传愿望清单",
+      "smartProcessing": {
+        "title": "智能CSV处理：",
+        "description": "自动从您的CSV标题中检测产品名称和类别",
+        "maxSize": "最大大小：10MB"
+      }
+    },
+    "manualEntry": {
+      "title": "添加个别愿望",
+      "description": "非常适合测试不同的魔法风格和逐个精确添加产品。",
+      "button": "许愿",
+      "perfectFor": {
+        "title": "完美适用于：",
+        "testing": "测试不同的魔法声音",
+        "adding": "添加1-5个产品",
+        "precision": "精确的愿望制作"
+      }
+    },
+    "helpText": "您总是可以使用其他方法稍后添加更多产品"
+  },
+  "forms": {
+    "languageSelector": {
+      "label": "输出语言",
+      "description": "选择生成描述的语言"
+    },
+    "batchLanguageSelector": {
+      "label": "生成描述的语言：",
+      "description": "此批次中所有描述的语言"
+    }
+  },
+  "buttons": {
+    "generate": "生成描述",
+    "generating": "生成中...",
+    "addProducts": "添加产品进行生成"
+  },
+  "results": {
+    "descriptionsGenerated": "描述已生成。在下面编辑并导出您的结果。",
+    "exportResults": "导出结果"
+  },
+  "footer": {
+    "copyright": "ProductGenie — 文字变收益的地方。"
+  },
+  "modals": {
+    "addProduct": {
+      "title": "手动添加产品"
+    }
+  },
+  "languages": {
+    "en": "英语",
+    "es": "西班牙语",
+    "fr": "法语",
+    "de": "德语",
+    "ja": "日语",
+    "zh": "中文"
+  }
+}

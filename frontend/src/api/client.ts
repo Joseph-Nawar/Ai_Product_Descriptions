@@ -16,7 +16,7 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Enhanced error handling for rate limits
+// Enhanced error handling for rate limits and payment errors
 export function handleApiError(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError;
@@ -28,11 +28,33 @@ export function handleApiError(error: unknown): string {
     }
     
     if (axiosError.response?.status === 400) {
+      const errorData = axiosError.response.data as any;
+      if (errorData?.error_code === 'INSUFFICIENT_CREDITS') {
+        return "Insufficient credits. Please upgrade your plan or purchase more credits.";
+      }
+      if (errorData?.error_code === 'SUBSCRIPTION_REQUIRED') {
+        return "Active subscription required. Please upgrade your plan to continue.";
+      }
+      if (errorData?.error_code === 'SUBSCRIPTION_EXPIRED') {
+        return "Your subscription has expired. Please renew to continue using the service.";
+      }
       return "Invalid request. Please check your input and try again.";
     }
     
     if (axiosError.response?.status === 401) {
       return "Authentication required. Please sign in and try again.";
+    }
+    
+    if (axiosError.response?.status === 402) {
+      return "Payment required. Please upgrade your plan or purchase credits to continue.";
+    }
+    
+    if (axiosError.response?.status === 403) {
+      const errorData = axiosError.response.data as any;
+      if (errorData?.error_code === 'CREDIT_LIMIT_EXCEEDED') {
+        return "Credit limit exceeded. Please upgrade your plan for higher limits.";
+      }
+      return "Access denied. Please check your subscription status.";
     }
     
     if (axiosError.response?.status === 500) {
@@ -46,3 +68,23 @@ export function handleApiError(error: unknown): string {
   
   return error instanceof Error ? error.message : "An unexpected error occurred.";
 }
+
+// Re-export payment APIs for backward compatibility
+import { paymentsApi } from './payments';
+
+export const paymentApi = {
+  // Legacy API methods for backward compatibility
+  getPlans: paymentsApi.plans.getPlans,
+  getSubscription: paymentsApi.subscription.getCurrent,
+  getCreditBalance: paymentsApi.credits.getCurrent,
+  getUsageStats: paymentsApi.usage.getStats,
+  getPaymentHistory: paymentsApi.history.getHistory,
+  createCheckoutSession: paymentsApi.checkout.createSubscriptionCheckout,
+  cancelSubscription: paymentsApi.subscription.cancel,
+  reactivateSubscription: paymentsApi.subscription.reactivate,
+  updateSubscription: paymentsApi.subscription.update,
+  handleWebhook: paymentsApi.webhook.handleWebhook,
+  
+  // New structured API
+  ...paymentsApi
+};

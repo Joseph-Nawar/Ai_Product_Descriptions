@@ -10,6 +10,7 @@ import {
   User 
 } from "firebase/auth";
 import { setIdToken } from "./token";
+import { usePaymentStore } from "../store/paymentStore";
 
 type AuthCtx = {
   user: User | null;
@@ -25,6 +26,14 @@ const Ctx = createContext<AuthCtx | null>(null);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Payment store integration
+  const {
+    refreshAll,
+    reset: resetPaymentStore,
+    connectWebSocket,
+    disconnectWebSocket
+  } = usePaymentStore();
 
   useEffect(() => {
     return onIdTokenChanged(auth, async (u: User | null) => {
@@ -32,12 +41,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (u) {
         const t = await u.getIdToken();
         setIdToken(t);
+        
+        // Initialize payment data when user signs in
+        try {
+          await refreshAll();
+          connectWebSocket();
+        } catch (error) {
+          console.error('Failed to initialize payment data:', error);
+        }
       } else {
         setIdToken(null);
+        
+        // Reset payment data when user signs out
+        resetPaymentStore();
+        disconnectWebSocket();
       }
       setLoading(false);
     });
-  }, []);
+  }, [refreshAll, resetPaymentStore, connectWebSocket, disconnectWebSocket]);
 
   const signInWithGoogle = async () => {
     await signInWithPopup(auth, googleProvider);
@@ -54,6 +75,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOutUser = async () => {
     await signOut(auth);
     setIdToken(null);
+    
+    // Clean up payment data and WebSocket connection
+    resetPaymentStore();
+    disconnectWebSocket();
   };
 
   const value = useMemo(() => ({ 

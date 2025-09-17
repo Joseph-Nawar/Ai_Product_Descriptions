@@ -9,6 +9,7 @@ import {
 import { GeneratedItem } from "../types";
 import { copyText } from "../utils/clipboard";
 import { Button, Spinner } from "./UI";
+import { usePaymentContext } from "../contexts/PaymentContext";
 
 type Props = {
   data: GeneratedItem[];
@@ -22,6 +23,7 @@ const columnHelper = createColumnHelper<GeneratedItem>();
 
 export default function EditableTable({ data, onChange, onRowSelect, selectedRowId, onRegenerate }: Props) {
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
+  const { payment } = usePaymentContext();
   
   const columns = useMemo<ColumnDef<GeneratedItem, any>[]>(() => [
     { 
@@ -76,10 +78,12 @@ export default function EditableTable({ data, onChange, onRowSelect, selectedRow
               <Button 
                 variant="secondary" 
                 onClick={() => onRegenerate(row.original)} 
-                disabled={row.original.regenerating}
+                disabled={row.original.regenerating || !payment.canGenerate(1)}
                 className="text-xs px-3 py-1"
+                title={!payment.canGenerate(1) ? "Insufficient credits to regenerate" : "Regenerate description (1 credit)"}
               >
                 {row.original.regenerating ? <Spinner size="sm" /> : "🔄 Regenerate"}
+                {!payment.canGenerate(1) && <span className="ml-1 text-red-400">(No credits)</span>}
               </Button>
               <Button 
                 variant="secondary" 

@@ -35,3 +35,64 @@ export type BatchResponse = {
 };
 
 export type ApiError = { message: string; status?: number };
+
+// Payment and Subscription Types
+export type SubscriptionPlan = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  interval: 'month' | 'year';
+  credits: number;
+  features: string[];
+  popular?: boolean;
+  lemon_squeezy_variant_id?: string;
+};
+
+export type UserSubscription = {
+  id: string;
+  plan_id: string;
+  status: 'active' | 'cancelled' | 'past_due' | 'unpaid';
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  lemon_squeezy_subscription_id?: string;
+  plan: SubscriptionPlan;
+};
+
+export type CreditBalance = {
+  current_credits: number;
+  total_credits: number;
+  used_credits: number;
+  reset_date?: string;
+};
+
+export type UsageStats = {
+  total_generations: number;
+  credits_used_today: number;
+  credits_used_this_month: number;
+  average_generations_per_day: number;
+  last_generation_date?: string;
+};
+
+export type PaymentTransaction = {
+  id: string;
+  amount: number;
+  currency: string;
+  status: 'completed' | 'pending' | 'failed' | 'refunded';
+  type: 'subscription' | 'credit_purchase' | 'refund';
+  description: string;
+  created_at: string;
+  lemon_squeezy_order_id?: string;
+};
+
+export type CheckoutSession = {
+  checkout_url: string;
+  session_id: string;
+};
+
+export type LemonSqueezyWebhook = {
+  event: string;
+  data: any;
+};

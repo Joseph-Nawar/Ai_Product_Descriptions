@@ -2,6 +2,8 @@
 import os
 import sys
 import logging
+import structlog
+import uuid
 import asyncio
 import time
 from pathlib import Path
@@ -13,6 +15,13 @@ import pandas as pd
 import json
 import io
 from dotenv import load_dotenv
+
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+except Exception:
+    sentry_sdk = None
+    SentryAsgiMiddleware = None
 
 # Add backend directory to path for imports
 THIS_DIR = Path(__file__).resolve().parent
@@ -27,6 +36,27 @@ from src.ai_pipeline import load_env, call_gemini_generate, build_gemini_prompt,
 from src.seo_check import seo_evaluate
 
 from src.auth.firebase import get_current_user
+from src.payments.endpoints import router as payment_router
+from src.payments.credit_service import CreditService, OperationType
+
+# Initialize logging (structured JSON)
+def setup_logging():
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            structlog.processors.dict_tracebacks,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level, logging.INFO)),
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+setup_logging()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -35,19 +65,53 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Add CORS middleware (env-driven)
+cors_origins_env = os.getenv(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000",
+)
+ALLOW_ORIGINS = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+    allow_origins=ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    # attach a request id for tracing
+    req_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = req_id
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-XSS-Protection", "0")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'",
+    )
+    response.headers.setdefault("X-Request-ID", req_id)
+    return response
+
+# Optional Sentry setup
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN and sentry_sdk is not None:
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.05)
+    if SentryAsgiMiddleware is not None:
+        app.add_middleware(SentryAsgiMiddleware)
+
+# Include payment router
+app.include_router(payment_router)
+
 # Global variables for model and components
 model = None
 cost_tracker = None
 safety_filter = None
+credit_service = None
 
 def find_column(columns, synonyms):
     """
@@ -123,7 +187,7 @@ def process_csv_row(row, target_audience, columns, language_code="en"):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the AI model and components on startup"""
-    global model, cost_tracker, safety_filter
+    global model, cost_tracker, safety_filter, credit_service
     
     try:
         # Load environment and initialize model
@@ -131,6 +195,7 @@ async def startup_event():
         model = conf["model"]
         cost_tracker = CostTracker()
         safety_filter = SafetyFilter()
+        credit_service = CreditService()
         
         # TEMPORARILY DISABLED FOR TESTING - Rate limiting for API calls
         # last_api_call_time = 0
@@ -145,6 +210,16 @@ async def startup_event():
             print(f"🤖 Model: {conf['model_name']} (Dry-run mode)")
             print(f"🌡️  Temperature: {conf['temperature']}")
             print("⚠️  Running in dry-run mode - API key not configured")
+        
+        print("💳 Credit service initialized - rate limiting enabled")
+        
+        # Initialize subscription plans
+        try:
+            from src.payments.init_subscription_plans import init_subscription_plans
+            init_subscription_plans()
+            print("📋 Subscription plans initialized")
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to initialize subscription plans: {str(e)}")
         
     except Exception as e:
         print(f"❌ Failed to start API: {str(e)}")
@@ -173,6 +248,23 @@ async def health_check():
         "model_loaded": model is not None,
         "timestamp": timestamp()
     }
+
+# Liveness and readiness probes
+@app.get("/healthz")
+def liveness():
+    return {"status": "ok"}
+
+@app.get("/readyz")
+def readiness():
+    # Try DB connection
+    try:
+        from app.db.session import engine
+        with engine.connect() as conn:
+            conn.exec_driver_sql("SELECT 1")
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return {"status": "ok" if db_ok else "degraded", "db": db_ok}
 
 @app.get("/auth/me")
 async def auth_me(user = Depends(get_current_user)):
@@ -259,11 +351,36 @@ async def generate_description(
     primary_keyword: str = Form(""),
     tone: str = Form("professional"),
     sku: str = Form(""),
-    languageCode: str = Form("en")
+    languageCode: str = Form("en"),
+    user = Depends(get_current_user)
 ):
     """Generate a single product description"""
-    if model is None:
-        raise HTTPException(status_code=500, detail="AI model not initialized")
+    if model is None or credit_service is None:
+        raise HTTPException(status_code=500, detail="AI model or credit service not initialized")
+    
+    user_id = user.get("uid")
+    
+    # Check and refresh credits if needed
+    await credit_service.check_and_refresh_credits(user_id)
+    
+    # Check user credits before generation
+    operation_type = OperationType.SINGLE_DESCRIPTION
+    can_proceed, credit_info = await credit_service.check_credits_and_limits(
+        user_id, operation_type, product_count=1
+    )
+    
+    if not can_proceed:
+        raise HTTPException(
+            status_code=402,  # Payment Required
+            detail={
+                "error": credit_info.get("error"),
+                "upgrade_required": credit_info.get("upgrade_required", False),
+                "current_credits": credit_info.get("current_credits", 0),
+                "required_credits": credit_info.get("required_credits", 1),
+                "subscription_tier": credit_info.get("subscription_tier", "free"),
+                "rate_limits": credit_info.get("rate_limits", {})
+            }
+        )
     
     # Validate language code
     SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'de', 'ja', 'zh']
@@ -341,6 +458,13 @@ async def generate_description(
         # SEO evaluation
         seo = seo_evaluate(description, primary_keyword)
         
+        # Deduct credits after successful generation
+        deduct_success, deduct_result = await credit_service.deduct_credits(
+            user_id, operation_type, product_count=1, request_id=row["id"]
+        )
+        if not deduct_success:
+            logging.warning(f"Failed to deduct credits for user {user_id}: {deduct_result.get('error')}")
+        
         return {
             "success": True,
             "data": {
@@ -355,7 +479,11 @@ async def generate_description(
                 "languageCode": languageCode,
                 "tokens_used": tokens_used,
                 "response_time": response_time,
-                "cost": cost_tracker.get_current_cost()
+                "cost": cost_tracker.get_current_cost(),
+                "credits_used": credit_info.get("required_credits", 1),
+                "remaining_credits": deduct_result.get("remaining_credits", 0),
+                "operation_type": operation_type.value,
+                "subscription_tier": credit_info.get("subscription_tier", "free")
             }
         }
         
@@ -367,8 +495,13 @@ async def generate_description(
 async def generate_batch_json(request: Dict[str, Any], user = Depends(get_current_user)):
     """Generate descriptions for multiple products from batch request"""
     logging.info(f"🚀 Generate batch endpoint called - user: {user.get('email', 'unknown')}")
-    if model is None:
-        raise HTTPException(status_code=500, detail="AI model not initialized")
+    if model is None or credit_service is None:
+        raise HTTPException(status_code=500, detail="AI model or credit service not initialized")
+    
+    user_id = user.get("uid")
+    
+    # Check and refresh credits if needed
+    await credit_service.check_and_refresh_credits(user_id)
     
     # Handle both old format (array of products) and new format (batch request)
     if isinstance(request, list):
@@ -388,6 +521,29 @@ async def generate_batch_json(request: Dict[str, Any], user = Depends(get_curren
     SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'de', 'ja', 'zh']
     if language_code not in SUPPORTED_LANGUAGES:
         raise HTTPException(status_code=400, detail=f"Unsupported language code: {language_code}")
+    
+    # Determine operation type and check credits
+    product_count = len(products)
+    operation_type = credit_service.determine_operation_type(product_count, is_regeneration=False)
+    
+    can_proceed, credit_info = await credit_service.check_credits_and_limits(
+        user_id, operation_type, product_count
+    )
+    
+    if not can_proceed:
+        raise HTTPException(
+            status_code=402,  # Payment Required
+            detail={
+                "error": credit_info.get("error"),
+                "upgrade_required": credit_info.get("upgrade_required", False),
+                "current_credits": credit_info.get("current_credits", 0),
+                "required_credits": credit_info.get("required_credits", 1),
+                "subscription_tier": credit_info.get("subscription_tier", "free"),
+                "operation_type": operation_type.value,
+                "product_count": product_count,
+                "rate_limits": credit_info.get("rate_limits", {})
+            }
+        )
     
     try:
         results = []
@@ -628,14 +784,27 @@ Return JSON:
                     "error": str(e)
                 })
         
+        # Deduct credits after successful batch generation
+        batch_id = f"batch_{timestamp()}"
+        deduct_success, deduct_result = await credit_service.deduct_credits(
+            user_id, operation_type, product_count, batch_id=batch_id
+        )
+        if not deduct_success:
+            logging.warning(f"Failed to deduct credits for user {user_id}: {deduct_result.get('error')}")
+        
         return {
             "success": True,
-            "batch_id": f"batch_{timestamp()}",
+            "batch_id": batch_id,
             "items": results,
             "errors": errors,
             "total_processed": len(results),
             "total_errors": len(errors),
-            "total_cost": cost_tracker.get_current_cost()
+            "total_cost": cost_tracker.get_current_cost(),
+            "credits_used": credit_info.get("required_credits", 1),
+            "remaining_credits": deduct_result.get("remaining_credits", 0),
+            "operation_type": operation_type.value,
+            "subscription_tier": credit_info.get("subscription_tier", "free"),
+            "product_count": product_count
         }
         
     except Exception as e:
@@ -643,10 +812,15 @@ Return JSON:
         raise HTTPException(status_code=500, detail=f"JSON batch processing failed: {str(e)}")
 
 @app.post("/api/generate-batch-csv")
-async def generate_batch(file: UploadFile = File(...), audience: str = Form(...), languageCode: str = Form("en")):
+async def generate_batch(file: UploadFile = File(...), audience: str = Form(...), languageCode: str = Form("en"), user = Depends(get_current_user)):
     """Generate descriptions for multiple products from CSV with automatic column mapping"""
-    if model is None:
-        raise HTTPException(status_code=500, detail="AI model not initialized")
+    if model is None or credit_service is None:
+        raise HTTPException(status_code=500, detail="AI model or credit service not initialized")
+    
+    user_id = user.get("uid")
+    
+    # Check and refresh credits if needed
+    await credit_service.check_and_refresh_credits(user_id)
     
     # Validate language code
     SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'de', 'ja', 'zh']
@@ -660,6 +834,29 @@ async def generate_batch(file: UploadFile = File(...), audience: str = Form(...)
         
         # Get column names for mapping
         columns = df.columns.tolist()
+        
+        # Check credits for CSV upload (1 credit per product)
+        product_count = len(df)
+        operation_type = OperationType.CSV_UPLOAD
+        
+        can_proceed, credit_info = await credit_service.check_credits_and_limits(
+            user_id, operation_type, product_count
+        )
+        
+        if not can_proceed:
+            raise HTTPException(
+                status_code=402,  # Payment Required
+                detail={
+                    "error": credit_info.get("error"),
+                    "upgrade_required": credit_info.get("upgrade_required", False),
+                    "current_credits": credit_info.get("current_credits", 0),
+                    "required_credits": credit_info.get("required_credits", 1),
+                    "subscription_tier": credit_info.get("subscription_tier", "free"),
+                    "operation_type": operation_type.value,
+                    "product_count": product_count,
+                    "rate_limits": credit_info.get("rate_limits", {})
+                }
+            )
         
         results = []
         errors = []
@@ -748,14 +945,27 @@ async def generate_batch(file: UploadFile = File(...), audience: str = Form(...)
                     "error": str(e)
                 })
         
+        # Deduct credits after successful CSV batch generation
+        batch_id = f"batch_{timestamp()}"
+        deduct_success, deduct_result = await credit_service.deduct_credits(
+            user_id, operation_type, product_count, batch_id=batch_id
+        )
+        if not deduct_success:
+            logging.warning(f"Failed to deduct credits for user {user_id}: {deduct_result.get('error')}")
+        
         return {
             "success": True,
-            "batch_id": f"batch_{timestamp()}",
+            "batch_id": batch_id,
             "items": results,
             "errors": errors,
             "total_processed": len(results),
             "total_errors": len(errors),
-            "total_cost": cost_tracker.get_current_cost()
+            "total_cost": cost_tracker.get_current_cost(),
+            "credits_used": credit_info.get("required_credits", 1),
+            "remaining_credits": deduct_result.get("remaining_credits", 0),
+            "operation_type": operation_type.value,
+            "subscription_tier": credit_info.get("subscription_tier", "free"),
+            "product_count": product_count
         }
         
     except Exception as e:
@@ -771,6 +981,30 @@ async def get_usage_stats():
     return {
         "success": True,
         "data": cost_tracker.get_usage_stats()
+    }
+
+@app.get("/api/user/credits")
+async def get_user_credit_info(user = Depends(get_current_user)):
+    """Get user's credit information and subscription details"""
+    if credit_service is None:
+        raise HTTPException(status_code=500, detail="Credit service not initialized")
+    
+    user_id = user.get("uid")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found in token")
+    
+    # Check and refresh credits if needed
+    await credit_service.check_and_refresh_credits(user_id)
+    
+    # Get comprehensive credit information
+    credit_info = await credit_service.get_user_credit_info(user_id)
+    
+    if "error" in credit_info:
+        raise HTTPException(status_code=500, detail=credit_info["error"])
+    
+    return {
+        "success": True,
+        "data": credit_info
     }
 
 @app.get("/batch/{batch_id}")
@@ -801,11 +1035,36 @@ async def download_batch(batch_id: str):
 async def regenerate_description(item: Dict[str, Any], user = Depends(get_current_user)):
     """Regenerate a single product description"""
     logging.info(f"🔄 Regenerate endpoint called - user: {user.get('email', 'unknown')}")
-    if model is None:
-        raise HTTPException(status_code=500, detail="AI model not initialized")
+    if model is None or credit_service is None:
+        raise HTTPException(status_code=500, detail="AI model or credit service not initialized")
     
     if safety_filter is None or cost_tracker is None:
         raise HTTPException(status_code=500, detail="AI components not initialized")
+    
+    user_id = user.get("uid")
+    
+    # Check and refresh credits if needed
+    await credit_service.check_and_refresh_credits(user_id)
+    
+    # Check credits for regeneration (1 credit)
+    operation_type = OperationType.REGENERATION
+    can_proceed, credit_info = await credit_service.check_credits_and_limits(
+        user_id, operation_type, product_count=1
+    )
+    
+    if not can_proceed:
+        raise HTTPException(
+            status_code=402,  # Payment Required
+            detail={
+                "error": credit_info.get("error"),
+                "upgrade_required": credit_info.get("upgrade_required", False),
+                "current_credits": credit_info.get("current_credits", 0),
+                "required_credits": credit_info.get("required_credits", 1),
+                "subscription_tier": credit_info.get("subscription_tier", "free"),
+                "operation_type": operation_type.value,
+                "rate_limits": credit_info.get("rate_limits", {})
+            }
+        )
     
     try:
         # Convert the item to row dict format
@@ -873,6 +1132,13 @@ async def regenerate_description(item: Dict[str, Any], user = Depends(get_curren
                 logging.error(f"Fallback generation failed for regenerate product {row_dict.get('id', 'Unknown')}: {fallback_error}")
                 raise HTTPException(status_code=500, detail=f"Regenerate description failed compliance validation: {validation_error}")
         
+        # Deduct credits after successful regeneration
+        deduct_success, deduct_result = await credit_service.deduct_credits(
+            user_id, operation_type, product_count=1, request_id=row_dict["id"]
+        )
+        if not deduct_success:
+            logging.warning(f"Failed to deduct credits for user {user_id}: {deduct_result.get('error')}")
+        
         result = {
             "id": row_dict["id"],
             "product_name": validated.get("title", row_dict["title"]),
@@ -889,7 +1155,11 @@ async def regenerate_description(item: Dict[str, Any], user = Depends(get_curren
             "seo_score": seo_evaluate(validated.get("description", ""), row_dict["primary_keyword"]),
             "tokens_used": tokens_used,
             "response_time": response_time,
-            "regenerating": False
+            "regenerating": False,
+            "credits_used": credit_info.get("required_credits", 1),
+            "remaining_credits": deduct_result.get("remaining_credits", 0),
+            "operation_type": operation_type.value,
+            "subscription_tier": credit_info.get("subscription_tier", "free")
         }
         
         return result

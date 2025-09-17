@@ -7,15 +7,18 @@ import ToneSelector from "../components/ToneSelector";
 import StyleSelector from "../components/StyleSelector";
 import LanguageSelector from "../components/LanguageSelector";
 import ProductGenieLogo from "../components/ProductGenieLogo";
+import { UpgradePrompt } from "../components/UpgradePrompt";
 import { Button, Banner, Spinner, StatusAnnouncer } from "../components/UI";
 import { ProductInput } from "../types";
 import { generateDescriptions } from "../api/generate";
 import { handleApiError } from "../api/client";
 import { useNavigate } from "react-router-dom";
+import { usePaymentContext } from "../contexts/PaymentContext";
 import { DEFAULT_LANGUAGE } from "../constants/languages";
 
 export default function Home() {
   const { t } = useTranslation();
+  const { payment } = usePaymentContext();
   const [batch, setBatch] = useState<ProductInput[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +39,22 @@ export default function Home() {
 
   async function handleGenerate() {
     setError(null);
+    
+    // Check if user has enough credits
+    const creditsNeeded = batch.length;
+    if (!payment.canGenerate(creditsNeeded)) {
+      setError("Insufficient credits. Please upgrade your plan or purchase more credits.");
+      payment.setShowUpgradePrompt(true);
+      return;
+    }
+
+    // Try to consume credits
+    const canProceed = await payment.handleGeneration(creditsNeeded);
+    if (!canProceed) {
+      setError("Unable to process generation. Please check your credit balance.");
+      return;
+    }
+
     setLoading(true);
     try {
       const batchRequest = {
@@ -48,6 +67,10 @@ export default function Home() {
       navigate(`/results?batch_id=${encodeURIComponent(res.batch_id)}`, { state: res });
     } catch (e: any) {
       setError(handleApiError(e));
+      // Refund credits on error
+      if (payment.creditBalance) {
+        payment.updateCredits(payment.creditBalance.current_credits + creditsNeeded, 'set');
+      }
     } finally {
       setLoading(false);
     }
@@ -68,6 +91,13 @@ export default function Home() {
       </section>
 
       {error && <Banner type="error">{error}</Banner>}
+
+      {/* Upgrade Prompt */}
+      <UpgradePrompt 
+        threshold={75}
+        variant="banner"
+        onUpgrade={() => navigate('/pricing')}
+      />
 
       {/* Batch Style Configuration - Always Visible */}
       <section className="animate-slide-in relative z-[99997]" style={{ animationDelay: '200ms' }}>
@@ -209,29 +239,45 @@ export default function Home() {
 
       {/* Generate Button */}
       <div className="flex justify-center pt-6 animate-slide-in" style={{ animationDelay: '500ms' }}>
-        <Button 
-          onClick={handleGenerate} 
-          disabled={!batch.length || loading || !batchTone || !batchStyle} 
-          glowing={!loading && batch.length > 0 && !!batchTone && !!batchStyle} 
-          className={`px-10 py-5 text-xl font-bold min-w-[300px] transition-all duration-300 ${
-            !batch.length ? 'opacity-50' : ''
-          }`}
-        >
-          {loading ? ( 
-            <span className="flex items-center justify-center gap-3">
-              <Spinner /> {t('buttons.generating')}
-            </span> 
-          ) : batch.length > 0 ? (
-            `${t('buttons.generate')} (${batch.length})`
-          ) : (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              {t('buttons.addProducts')}
-            </span>
+        <div className="text-center space-y-4">
+          <Button 
+            onClick={handleGenerate} 
+            disabled={!batch.length || loading || !batchTone || !batchStyle} 
+            glowing={!loading && batch.length > 0 && !!batchTone && !!batchStyle} 
+            className={`px-10 py-5 text-xl font-bold min-w-[300px] transition-all duration-300 ${
+              !batch.length ? 'opacity-50' : ''
+            }`}
+          >
+            {loading ? ( 
+              <span className="flex items-center justify-center gap-3">
+                <Spinner /> {t('buttons.generating')}
+              </span> 
+            ) : batch.length > 0 ? (
+              `${t('buttons.generate')} (${batch.length})`
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                {t('buttons.addProducts')}
+              </span>
+            )}
+          </Button>
+          
+          {/* Credit Cost Indicator */}
+          {batch.length > 0 && (
+            <div className="text-center">
+              <div className="text-sm text-gray-400">
+                This will cost <span className="font-semibold text-primary">{batch.length} credit{batch.length !== 1 ? 's' : ''}</span>
+              </div>
+              {payment.creditBalance && (
+                <div className="text-xs text-gray-500 mt-1">
+                  You have {payment.creditBalance.current_credits} credits remaining
+                </div>
+              )}
+            </div>
           )}
-        </Button>
+        </div>
       </div>
       <StatusAnnouncer message={loading ? t('buttons.generating') : error ? `Error: ${error}` : "Ready"} />
 

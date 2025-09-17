@@ -4,12 +4,12 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from '../constants/languages';
 
 // Import translation resources
-import enTranslation from '../../public/locales/en/translation.json';
-import esTranslation from '../../public/locales/es/translation.json';
-import frTranslation from '../../public/locales/fr/translation.json';
-import deTranslation from '../../public/locales/de/translation.json';
-import jaTranslation from '../../public/locales/ja/translation.json';
-import zhTranslation from '../../public/locales/zh/translation.json';
+import enTranslation from '../locales/en/translation.json';
+import esTranslation from '../locales/es/translation.json';
+import frTranslation from '../locales/fr/translation.json';
+import deTranslation from '../locales/de/translation.json';
+import jaTranslation from '../locales/ja/translation.json';
+import zhTranslation from '../locales/zh/translation.json';
 
 const resources = {
   en: { translation: enTranslation },
