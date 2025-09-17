@@ -31,6 +31,7 @@ export default {
         'fade-in': 'fadeIn 0.6s ease-out forwards',
         'slide-in': 'slideIn 0.6s ease-out forwards',
         'shimmer': 'shimmer 2s linear infinite',
+        'spin': 'spin 1s linear infinite',
       },
       keyframes: {
         fadeIn: {

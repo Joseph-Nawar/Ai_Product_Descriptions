@@ -336,11 +336,26 @@ Return JSON:
         
     except Exception as e:
         logging.error(f"Test generation failed for {language_code}: {str(e)}")
+        error_msg = str(e)
+        
+        # Enhanced error categorization
+        if "QUOTA_EXCEEDED" in error_msg:
+            error_type = "QUOTA_EXCEEDED"
+        elif "SAFETY_FILTER" in error_msg:
+            error_type = "SAFETY_FILTER"
+        elif "NETWORK_ERROR" in error_msg:
+            error_type = "NETWORK_ERROR"
+        elif "RETRY_EXHAUSTED" in error_msg:
+            error_type = "RETRY_EXHAUSTED"
+        else:
+            error_type = "UNKNOWN_ERROR"
+        
         return {
             "success": False,
             "language_code": language_code,
-            "error": str(e),
-            "error_type": type(e).__name__
+            "error": error_msg,
+            "error_type": error_type,
+            "original_error_type": type(e).__name__
         }
 
 @app.post("/api/generate-description")
@@ -679,6 +694,14 @@ async def generate_batch_json(request: Dict[str, Any], user = Depends(get_curren
                             "row": idx,
                             "id": row_dict.get("id", ""),
                             "error": "Network error - please try again"
+                        })
+                        continue
+                    elif "RETRY_EXHAUSTED" in error_msg:
+                        logging.warning(f"All retry attempts exhausted for product: {row_dict.get('title', 'Unknown')}")
+                        errors.append({
+                            "row": idx,
+                            "id": row_dict.get("id", ""),
+                            "error": "API retry attempts exhausted - please try again later"
                         })
                         continue
                     

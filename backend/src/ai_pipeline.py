@@ -200,10 +200,12 @@ def load_env(dry_run=False):
         "monthly_limit": monthly_limit
     }
 
-@retry(wait=wait_exponential(min=1, max=20), stop=stop_after_attempt(5))
 def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_tracker=None):
-    """Make Gemini API call with enhanced monitoring"""
-    try:
+    """Make Gemini API call with enhanced monitoring and improved error handling"""
+    from tenacity import RetryError
+    
+    def _make_api_call():
+        """Internal function to make the actual API call"""
         # Configure generation parameters for enhanced creativity and quality
         generation_config = genai.types.GenerationConfig(
             temperature=temperature,
@@ -213,23 +215,23 @@ def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_track
             candidate_count=1
         )
         
-        # Add safety settings
+        # Add safety settings - relaxed for non-English content
         safety_settings = [
             {
                 "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
             },
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH", 
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
             },
             {
                 "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
             },
             {
                 "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
             }
         ]
         
@@ -269,7 +271,41 @@ def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_track
             return response.text, estimated_tokens, end_time - start_time
         else:
             raise Exception("Empty response from Gemini")
-            
+    
+    # Use retry decorator with better error handling
+    @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
+    def _retry_api_call():
+        return _make_api_call()
+    
+    try:
+        return _retry_api_call()
+    except RetryError as retry_error:
+        # Handle RetryError specifically
+        error_msg = str(retry_error)
+        
+        # Enhanced error categorization and logging
+        if "quota" in error_msg.lower() or "limit" in error_msg.lower():
+            error_type = "QUOTA_EXCEEDED"
+            detailed_msg = f"API quota exceeded after retries: {error_msg}"
+        elif "safety" in error_msg.lower() or "blocked" in error_msg.lower():
+            error_type = "SAFETY_FILTER"
+            detailed_msg = f"Content blocked by safety filters after retries: {error_msg}"
+        elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
+            error_type = "NETWORK_ERROR"
+            detailed_msg = f"Network/connection issue after retries: {error_msg}"
+        elif "invalid" in error_msg.lower() or "malformed" in error_msg.lower():
+            error_type = "INVALID_REQUEST"
+            detailed_msg = f"Invalid request format after retries: {error_msg}"
+        else:
+            error_type = "RETRY_EXHAUSTED"
+            detailed_msg = f"All retry attempts exhausted: {error_msg}"
+        
+        # Log detailed error information
+        if logger:
+            logger.log_error("api_call", error_type, detailed_msg)
+        
+        # Re-raise with more context
+        raise Exception(f"Gemini API Error ({error_type}): {detailed_msg}")
     except Exception as e:
         error_msg = str(e)
         
