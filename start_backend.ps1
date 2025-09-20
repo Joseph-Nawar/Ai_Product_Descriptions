@@ -24,6 +24,14 @@ Write-Host "Activating virtual environment..." -ForegroundColor Yellow
 Write-Host "Installing dependencies..." -ForegroundColor Yellow
 pip install -r requirements.txt
 
+# Check if google-generativeai is installed, if not install it separately
+Write-Host "Checking for google-generativeai..." -ForegroundColor Yellow
+$genaiInstalled = pip list | Select-String "google-generativeai"
+if (-not $genaiInstalled) {
+    Write-Host "Installing google-generativeai..." -ForegroundColor Yellow
+    pip install google-generativeai
+}
+
 # Install firebase_admin if not already installed
 Write-Host "Checking for firebase_admin..." -ForegroundColor Yellow
 $firebaseInstalled = pip list | Select-String "firebase-admin"

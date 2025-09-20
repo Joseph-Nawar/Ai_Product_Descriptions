@@ -39,7 +39,7 @@ def get_database_url() -> str:
         return database_url
     
     # Build URL from individual components
-    db_type = os.getenv("DB_TYPE", "postgresql")
+    db_type = os.getenv("DB_TYPE", "sqlite")
     db_host = os.getenv("DB_HOST", "localhost")
     db_port = os.getenv("DB_PORT", "5432")
     db_name = os.getenv("DB_NAME", "ai_descriptions")
@@ -53,7 +53,7 @@ def get_database_url() -> str:
         else:
             return f"postgresql://{db_user}@{db_host}:{db_port}/{db_name}"
     elif db_type == "sqlite":
-        return f"sqlite:///{db_name}.db"
+        return f"sqlite:///./{db_name}.db"
     elif db_type == "mysql":
         if db_password:
             return f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"

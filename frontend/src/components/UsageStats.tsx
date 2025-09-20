@@ -90,7 +90,7 @@ export function UsageStats({ onRefresh, className = "", showCharts = true }: Usa
     return (
       <div className="bg-white/5 rounded-lg p-4">
         <div className="text-sm text-gray-400 mb-2">{title}</div>
-        <div className="text-2xl font-bold text-white mb-2">{data.toLocaleString()}</div>
+        <div className="text-2xl font-bold text-white mb-2">{data?.toLocaleString() || '0'}</div>
         <div className="w-full bg-gray-700 rounded-full h-2">
           <div
             className="h-2 bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-500"
@@ -149,25 +149,25 @@ export function UsageStats({ onRefresh, className = "", showCharts = true }: Usa
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white/5 rounded-lg border border-glass-border p-4">
           <div className="text-sm text-gray-400 mb-1">Total Generations</div>
-          <div className="text-2xl font-bold text-white">{stats.total_generations.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-white">{stats?.total_generations?.toLocaleString() || '0'}</div>
           <div className="text-xs text-gray-500 mt-1">All time</div>
         </div>
 
         <div className="bg-white/5 rounded-lg border border-glass-border p-4">
           <div className="text-sm text-gray-400 mb-1">Today's Usage</div>
-          <div className="text-2xl font-bold text-white">{stats.credits_used_today.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-white">{stats?.credits_used_today?.toLocaleString() || '0'}</div>
           <div className="text-xs text-gray-500 mt-1">Credits used</div>
         </div>
 
         <div className="bg-white/5 rounded-lg border border-glass-border p-4">
           <div className="text-sm text-gray-400 mb-1">This Month</div>
-          <div className="text-2xl font-bold text-white">{stats.credits_used_this_month.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-white">{stats?.credits_used_this_month?.toLocaleString() || '0'}</div>
           <div className="text-xs text-gray-500 mt-1">Credits used</div>
         </div>
 
         <div className="bg-white/5 rounded-lg border border-glass-border p-4">
           <div className="text-sm text-gray-400 mb-1">Daily Average</div>
-          <div className="text-2xl font-bold text-white">{stats.average_generations_per_day.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{stats?.average_generations_per_day?.toFixed(1) || '0.0'}</div>
           <div className="text-xs text-gray-500 mt-1">Generations/day</div>
         </div>
       </div>
@@ -183,8 +183,8 @@ export function UsageStats({ onRefresh, className = "", showCharts = true }: Usa
         </div>
         
         <div className="text-gray-400 text-sm">
-          You're averaging <span className="text-white font-semibold">{stats.average_generations_per_day.toFixed(1)}</span> generations per day.
-          {stats.average_generations_per_day > 10 && (
+          You're averaging <span className="text-white font-semibold">{(stats.average_generations_per_day || 0).toFixed(1)}</span> generations per day.
+          {(stats.average_generations_per_day || 0) > 10 && (
             <span className="text-emerald-400 ml-2">Great usage! 🚀</span>
           )}
         </div>
@@ -194,11 +194,11 @@ export function UsageStats({ onRefresh, className = "", showCharts = true }: Usa
       {showCharts && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <UsageChart 
-            data={stats.total_generations} 
+            data={stats.total_generations || 0} 
             title="Total Generations" 
           />
           <UsageChart 
-            data={stats.credits_used_this_month} 
+            data={stats.credits_used_this_month || 0} 
             title="Monthly Usage" 
           />
         </div>
@@ -218,19 +218,19 @@ export function UsageStats({ onRefresh, className = "", showCharts = true }: Usa
       <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg border border-primary/30 p-6">
         <h4 className="text-lg font-semibold text-white mb-3">Usage Insights</h4>
         <div className="space-y-2 text-sm text-gray-300">
-          {stats.average_generations_per_day > 10 && (
+          {(stats.average_generations_per_day || 0) > 10 && (
             <div className="flex items-center">
               <span className="text-emerald-400 mr-2">✓</span>
               You're a power user! Consider upgrading to a higher plan for better value.
             </div>
           )}
-          {stats.credits_used_today > 50 && (
+          {(stats.credits_used_today || 0) > 50 && (
             <div className="flex items-center">
               <span className="text-yellow-400 mr-2">⚠</span>
               High usage today. Monitor your credit balance.
             </div>
           )}
-          {stats.average_generations_per_day < 2 && (
+          {(stats.average_generations_per_day || 0) < 2 && (
             <div className="flex items-center">
               <span className="text-blue-400 mr-2">💡</span>
               You have room to explore more features and generate more content.

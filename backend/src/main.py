@@ -8,7 +8,7 @@ import asyncio
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import pandas as pd
@@ -32,12 +32,69 @@ sys.path.insert(0, str(BACKEND_DIR))
 load_dotenv(BACKEND_DIR / ".env")
 
 from utils.helpers import ensure_dir, timestamp, safe_extract_json, validate_and_ensure_compliance, generate_fallback_bullets
-from src.ai_pipeline import load_env, call_gemini_generate, build_gemini_prompt, row_to_dict, CostTracker, SafetyFilter
-from src.seo_check import seo_evaluate
+try:
+    from src.ai_pipeline import load_env, call_gemini_generate, build_gemini_prompt, row_to_dict, CostTracker, SafetyFilter
+except ImportError as e:
+    print(f"⚠️  Warning: AI pipeline not available: {str(e)}")
+    print("⚠️  Server will start in limited mode without AI functionality")
+    # Create dummy functions for when AI is not available
+    def load_env(dry_run=True):
+        return {"model": None, "model_name": "unavailable", "temperature": 0.2}
+    
+    def call_gemini_generate(*args, **kwargs):
+        raise HTTPException(status_code=500, detail="AI functionality not available. Please install google-generativeai package.")
+    
+    def build_gemini_prompt(*args, **kwargs):
+        return "AI functionality not available"
+    
+    def row_to_dict(*args, **kwargs):
+        return {}
+    
+    class CostTracker:
+        def __init__(self): pass
+        def get_current_cost(self): return 0.0
+        def get_usage_stats(self): return {"total_cost": 0.0, "total_tokens": 0}
+    
+    class SafetyFilter:
+        def __init__(self): pass
+        def validate_input(self, text): return True, ""
+        def sanitize_output(self, text): return text
+try:
+    from src.seo_check import seo_evaluate
+except ImportError:
+    print("⚠️  Warning: SEO check not available")
+    def seo_evaluate(*args, **kwargs):
+        return {"score": 0, "issues": []}
 
-from src.auth.firebase import get_current_user
-from src.payments.endpoints import router as payment_router
-from src.payments.credit_service import CreditService, OperationType
+try:
+    from src.auth.firebase import get_current_user
+except ImportError:
+    print("⚠️  Warning: Firebase auth not available")
+    def get_current_user():
+        raise HTTPException(status_code=401, detail="Authentication not available")
+
+try:
+    from src.payments.endpoints import router as payment_router
+    from src.payments.credit_service import CreditService, OperationType
+except ImportError:
+    print("⚠️  Warning: Payment system not available")
+    from fastapi import APIRouter
+    payment_router = APIRouter()
+    
+    class CreditService:
+        def __init__(self): pass
+        async def check_and_refresh_credits(self, *args, **kwargs): pass
+        async def check_credits_and_limits(self, *args, **kwargs): 
+            return True, {"required_credits": 1, "subscription_tier": "free"}
+        async def deduct_credits(self, *args, **kwargs): 
+            return True, {"remaining_credits": 0}
+        async def get_user_credit_info(self, *args, **kwargs): 
+            return {"current_credits": 0, "subscription_tier": "free"}
+    
+    class OperationType:
+        SINGLE_DESCRIPTION = "single"
+        CSV_UPLOAD = "csv"
+        REGENERATION = "regeneration"
 
 # Initialize logging (structured JSON)
 def setup_logging():
@@ -68,15 +125,20 @@ app = FastAPI(
 # Add CORS middleware (env-driven)
 cors_origins_env = os.getenv(
     "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:3000",
+    "http://localhost:5173,http://localhost:3000,http://localhost:8080",
 )
 ALLOW_ORIGINS = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+
+# Debug CORS configuration
+print(f"🔧 CORS Origins: {ALLOW_ORIGINS}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOW_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Security headers middleware
@@ -190,12 +252,36 @@ async def startup_event():
     global model, cost_tracker, safety_filter, credit_service
     
     try:
+        print("🚀 Starting AI Product Descriptions API...")
+        
+        # Initialize database first
+        try:
+            from src.database.connection import init_database, check_database_connection
+            init_database()
+            if check_database_connection():
+                print("✅ Database connection established")
+            else:
+                print("⚠️  Database connection check failed, but continuing...")
+        except Exception as e:
+            print(f"⚠️  Database initialization warning: {str(e)}")
+            # Don't fail startup for database issues in development
+        
         # Load environment and initialize model
-        conf = load_env(dry_run=False)  # Use real API key
-        model = conf["model"]
-        cost_tracker = CostTracker()
-        safety_filter = SafetyFilter()
-        credit_service = CreditService()
+        try:
+            conf = load_env(dry_run=False)  # Use real API key
+            model = conf["model"]
+            cost_tracker = CostTracker()
+            safety_filter = SafetyFilter()
+            credit_service = CreditService()
+            
+            print("✅ AI components initialized")
+        except Exception as e:
+            print(f"⚠️  AI component initialization warning: {str(e)}")
+            # Set defaults to prevent crashes
+            model = None
+            cost_tracker = CostTracker()
+            safety_filter = SafetyFilter()
+            credit_service = None
         
         # TEMPORARILY DISABLED FOR TESTING - Rate limiting for API calls
         # last_api_call_time = 0
@@ -203,15 +289,18 @@ async def startup_event():
         
         print("✅ AI Product Descriptions API started successfully")
         if model is not None:
-            print(f"🤖 Model: {conf['model_name']} (Live mode)")
-            print(f"🌡️  Temperature: {conf['temperature']}")
+            print(f"🤖 Model: {conf.get('model_name', 'Unknown')} (Live mode)")
+            print(f"🌡️  Temperature: {conf.get('temperature', 0.2)}")
             print("✅ API key configured - ready for AI generation")
         else:
-            print(f"🤖 Model: {conf['model_name']} (Dry-run mode)")
-            print(f"🌡️  Temperature: {conf['temperature']}")
+            print(f"🤖 Model: {conf.get('model_name', 'Unknown')} (Dry-run mode)")
+            print(f"🌡️  Temperature: {conf.get('temperature', 0.2)}")
             print("⚠️  Running in dry-run mode - API key not configured")
         
-        print("💳 Credit service initialized - rate limiting enabled")
+        if credit_service:
+            print("💳 Credit service initialized - rate limiting enabled")
+        else:
+            print("⚠️  Credit service not available")
         
         # Initialize subscription plans
         try:
@@ -221,9 +310,14 @@ async def startup_event():
         except Exception as e:
             print(f"⚠️  Warning: Failed to initialize subscription plans: {str(e)}")
         
+        print("🎉 Server startup completed successfully!")
+        
     except Exception as e:
-        print(f"❌ Failed to start API: {str(e)}")
-        raise
+        print(f"❌ Critical error during startup: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Don't raise to prevent server crash, but log the error
+        print("⚠️  Server will continue with limited functionality")
 
 # TEMPORARILY DISABLED FOR TESTING
 def rate_limit_api_call():
@@ -1194,6 +1288,35 @@ async def regenerate_description(item: Dict[str, Any], user = Depends(get_curren
         logging.error(f"Safety filter status: {safety_filter is not None}")
         logging.error(f"Cost tracker status: {cost_tracker is not None}")
         raise HTTPException(status_code=500, detail=f"Regeneration failed: {str(e)}")
+
+@app.websocket("/ws/payments")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time payment updates"""
+    await websocket.accept()
+    print("🔌 WebSocket client connected")
+    
+    try:
+        while True:
+            # Wait for messages from client
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Handle different message types
+            if message.get("type") == "ping":
+                await websocket.send_text(json.dumps({"type": "pong", "timestamp": time.time()}))
+            elif message.get("type") == "auth":
+                # Simple auth handling - in production, verify the token
+                print(f"🔐 WebSocket authentication: {message.get('token', 'No token')[:20]}...")
+                await websocket.send_text(json.dumps({"type": "auth_success", "message": "Authenticated"}))
+            else:
+                # Echo back the message
+                await websocket.send_text(json.dumps({"type": "echo", "data": message}))
+                
+    except WebSocketDisconnect:
+        print("🔌 WebSocket client disconnected")
+    except Exception as e:
+        print(f"❌ WebSocket error: {str(e)}")
+        await websocket.close()
 
 if __name__ == "__main__":
     import uvicorn

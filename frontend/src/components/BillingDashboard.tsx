@@ -264,19 +264,19 @@ export function BillingDashboard({ className = "" }: BillingDashboardProps) {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-gray-400">Total Generations</span>
-                <span className="text-white font-semibold">{usageStats.total_generations.toLocaleString()}</span>
+                <span className="text-white font-semibold">{(usageStats.total_generations || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Today's Usage</span>
-                <span className="text-white font-semibold">{usageStats.credits_used_today.toLocaleString()}</span>
+                <span className="text-white font-semibold">{(usageStats.credits_used_today || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Monthly Usage</span>
-                <span className="text-white font-semibold">{usageStats.credits_used_this_month.toLocaleString()}</span>
+                <span className="text-white font-semibold">{(usageStats.credits_used_this_month || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Daily Average</span>
-                <span className="text-white font-semibold">{usageStats.average_generations_per_day.toFixed(1)}</span>
+                <span className="text-white font-semibold">{(usageStats.average_generations_per_day || 0).toFixed(1)}</span>
               </div>
             </div>
           ) : (

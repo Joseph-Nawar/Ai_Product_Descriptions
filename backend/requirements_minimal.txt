@@ -1,0 +1,35 @@
+# Minimal requirements for AI Product Descriptions Backend
+# Core FastAPI and server packages
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Database packages
+sqlalchemy==2.0.23
+alembic==1.12.1
+
+# Authentication and security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==41.0.7
+bcrypt==4.1.2
+
+# Environment and configuration
+python-dotenv==1.0.0
+
+# Data validation and serialization
+pydantic==2.5.0
+
+# HTTP clients
+requests==2.31.0
+httpx==0.25.2
+
+# Payment processing (optional - can be installed separately)
+# lemon-squeezy-python==1.0.0
+# stripe==7.8.0
+
+# Firebase (optional - can be installed separately)
+# firebase-admin==6.4.0
+
+# AI packages (optional - can be installed separately)
+# google-generativeai==0.8.5

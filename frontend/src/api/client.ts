@@ -69,22 +69,22 @@ export function handleApiError(error: unknown): string {
   return error instanceof Error ? error.message : "An unexpected error occurred.";
 }
 
-// Re-export payment APIs for backward compatibility
-import { paymentsApi } from './payments';
-
+// Payment API will be imported lazily to avoid circular dependency
 export const paymentApi = {
-  // Legacy API methods for backward compatibility
-  getPlans: paymentsApi.plans.getPlans,
-  getSubscription: paymentsApi.subscription.getCurrent,
-  getCreditBalance: paymentsApi.credits.getCurrent,
-  getUsageStats: paymentsApi.usage.getStats,
-  getPaymentHistory: paymentsApi.history.getHistory,
-  createCheckoutSession: paymentsApi.checkout.createSubscriptionCheckout,
-  cancelSubscription: paymentsApi.subscription.cancel,
-  reactivateSubscription: paymentsApi.subscription.reactivate,
-  updateSubscription: paymentsApi.subscription.update,
-  handleWebhook: paymentsApi.webhook.handleWebhook,
-  
-  // New structured API
-  ...paymentsApi
+  // These will be populated when payments module is loaded
+  getPlans: () => import('./payments').then(m => m.paymentsApi.plans.getPlans()),
+  getSubscription: () => import('./payments').then(m => m.paymentsApi.subscription.getCurrent()),
+  getCreditBalance: () => import('./payments').then(m => m.paymentsApi.credits.getCurrent()),
+  getUsageStats: () => import('./payments').then(m => m.paymentsApi.usage.getStats()),
+  getPaymentHistory: () => import('./payments').then(m => m.paymentsApi.history.getHistory()),
+  createCheckoutSession: (variantId: string, successUrl?: string, cancelUrl?: string) => 
+    import('./payments').then(m => m.paymentsApi.checkout.createSubscriptionCheckout(variantId, successUrl, cancelUrl)),
+  cancelSubscription: (subscriptionId: string) => 
+    import('./payments').then(m => m.paymentsApi.subscription.cancel(subscriptionId)),
+  reactivateSubscription: (subscriptionId: string) => 
+    import('./payments').then(m => m.paymentsApi.subscription.reactivate(subscriptionId)),
+  updateSubscription: (subscriptionId: string, variantId: string) => 
+    import('./payments').then(m => m.paymentsApi.subscription.update(subscriptionId, variantId)),
+  handleWebhook: (webhookData: any) => 
+    import('./payments').then(m => m.paymentsApi.webhook.handleWebhook(webhookData))
 };

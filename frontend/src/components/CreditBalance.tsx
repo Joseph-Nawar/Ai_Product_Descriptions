@@ -113,7 +113,7 @@ export function CreditBalance({
           <div>
             <div className="text-sm text-gray-400">Credits</div>
             <div className="text-xl font-bold text-white">
-              {balance.current_credits.toLocaleString()}
+              {(balance.current_credits || 0).toLocaleString()}
             </div>
           </div>
           <div className="text-right">
