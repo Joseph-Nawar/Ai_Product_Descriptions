@@ -51,8 +51,9 @@ export function CreditBalance({
   };
 
   const getUsagePercentage = () => {
-    if (!balance || balance.total_credits === 0) return 0;
-    return Math.round((balance.used_credits / balance.total_credits) * 100);
+    if (!balance || !balance.total_credits || balance.total_credits === 0) return 0;
+    const usedCredits = balance.used_credits ?? 0;
+    return Math.round((usedCredits / balance.total_credits) * 100);
   };
 
   const getStatusColor = () => {
@@ -113,7 +114,7 @@ export function CreditBalance({
           <div>
             <div className="text-sm text-gray-400">Credits</div>
             <div className="text-xl font-bold text-white">
-              {balance.current_credits.toLocaleString()}
+              {(balance.current_credits ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="text-right">
@@ -158,7 +159,7 @@ export function CreditBalance({
       {/* Current Balance */}
       <div className="text-center mb-6">
         <div className="text-4xl font-bold text-primary mb-2">
-          {balance.current_credits.toLocaleString()}
+          {(balance.current_credits ?? 0).toLocaleString()}
         </div>
         <div className="text-gray-400">Available Credits</div>
       </div>
@@ -167,13 +168,13 @@ export function CreditBalance({
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-white/5 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-white">
-            {balance.used_credits.toLocaleString()}
+            {(balance.used_credits ?? 0).toLocaleString()}
           </div>
           <div className="text-sm text-gray-400">Used</div>
         </div>
         <div className="bg-white/5 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-white">
-            {balance.total_credits.toLocaleString()}
+            {(balance.total_credits ?? 0).toLocaleString()}
           </div>
           <div className="text-sm text-gray-400">Total</div>
         </div>

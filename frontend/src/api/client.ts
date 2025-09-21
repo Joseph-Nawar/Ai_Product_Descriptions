@@ -69,22 +69,51 @@ export function handleApiError(error: unknown): string {
   return error instanceof Error ? error.message : "An unexpected error occurred.";
 }
 
-// Re-export payment APIs for backward compatibility
-import { paymentsApi } from './payments';
-
+// Payment API functions (avoiding circular dependency)
 export const paymentApi = {
-  // Legacy API methods for backward compatibility
-  getPlans: paymentsApi.plans.getPlans,
-  getSubscription: paymentsApi.subscription.getCurrent,
-  getCreditBalance: paymentsApi.credits.getCurrent,
-  getUsageStats: paymentsApi.usage.getStats,
-  getPaymentHistory: paymentsApi.history.getHistory,
-  createCheckoutSession: paymentsApi.checkout.createSubscriptionCheckout,
-  cancelSubscription: paymentsApi.subscription.cancel,
-  reactivateSubscription: paymentsApi.subscription.reactivate,
-  updateSubscription: paymentsApi.subscription.update,
-  handleWebhook: paymentsApi.webhook.handleWebhook,
-  
-  // New structured API
-  ...paymentsApi
+  // Basic API methods that will be implemented directly
+  getPlans: async () => {
+    const response = await api.get('/api/payment/plans');
+    return response.data.plans;
+  },
+  getSubscription: async () => {
+    const response = await api.get('/api/payment/user/subscription');
+    return response.data.data;
+  },
+  getCreditBalance: async () => {
+    const response = await api.get('/api/payment/user/credits');
+    return response.data.data;
+  },
+  getUsageStats: async () => {
+    const response = await api.get('/api/payment/user/usage');
+    return response.data.data;
+  },
+  getPaymentHistory: async (page: number = 1, itemsPerPage: number = 10) => {
+    const response = await api.get(`/api/payment/user/history?page=${page}&limit=${itemsPerPage}`);
+    return response.data.data;
+  },
+  createCheckoutSession: async (variantId: string, successUrl?: string, cancelUrl?: string) => {
+    const response = await api.post('/api/payment/checkout', {
+      plan_id: variantId,
+      success_url: successUrl,
+      cancel_url: cancelUrl
+    });
+    return response.data.data;
+  },
+  cancelSubscription: async (subscriptionId: string) => {
+    const response = await api.post(`/api/payment/subscription/${subscriptionId}/cancel`);
+    return response.data.data;
+  },
+  reactivateSubscription: async (subscriptionId: string) => {
+    const response = await api.post(`/api/payment/subscription/${subscriptionId}/reactivate`);
+    return response.data.data;
+  },
+  updateSubscription: async (subscriptionId: string, updates: any) => {
+    const response = await api.patch(`/api/payment/subscription/${subscriptionId}`, updates);
+    return response.data.data;
+  },
+  handleWebhook: async (webhookData: any) => {
+    const response = await api.post('/api/payment/webhook', webhookData);
+    return response.data.data;
+  }
 };

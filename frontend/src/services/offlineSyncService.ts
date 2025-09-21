@@ -181,32 +181,35 @@ class OfflineSyncService {
    * Sync subscription update
    */
   private async syncUpdateSubscription(payload: { subscriptionId: string; variantId: string }): Promise<void> {
-    const { paymentsApi } = await import('../api/payments');
-    await paymentsApi.subscription.update(payload.subscriptionId, payload.variantId);
+    const { paymentApi } = await import('../api/client');
+    await paymentApi.updateSubscription(payload.subscriptionId, payload.variantId);
   }
 
   /**
    * Sync subscription cancellation
    */
   private async syncCancelSubscription(payload: { subscriptionId: string }): Promise<void> {
-    const { paymentsApi } = await import('../api/payments');
-    await paymentsApi.subscription.cancel(payload.subscriptionId);
+    const { paymentApi } = await import('../api/client');
+    await paymentApi.cancelSubscription(payload.subscriptionId);
   }
 
   /**
    * Sync subscription reactivation
    */
   private async syncReactivateSubscription(payload: { subscriptionId: string }): Promise<void> {
-    const { paymentsApi } = await import('../api/payments');
-    await paymentsApi.subscription.reactivate(payload.subscriptionId);
+    const { paymentApi } = await import('../api/client');
+    await paymentApi.reactivateSubscription(payload.subscriptionId);
   }
 
   /**
    * Sync credit purchase
    */
   private async syncPurchaseCredits(payload: { amount: number; variantId?: string }): Promise<void> {
-    const { paymentsApi } = await import('../api/payments');
-    await paymentsApi.credits.purchase(payload.amount, payload.variantId);
+    const { paymentApi } = await import('../api/client');
+    if (!payload.variantId) {
+      throw new Error('Variant ID is required for credit purchase');
+    }
+    await paymentApi.createCheckoutSession(payload.variantId);
   }
 
   /**

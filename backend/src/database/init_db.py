@@ -10,6 +10,10 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add backend directory to path
 BACKEND_DIR = Path(__file__).parent.parent.parent
@@ -36,9 +40,9 @@ def create_default_plans():
             "price": 0.00,
             "currency": "USD",
             "billing_interval": "month",
-            "credits_per_period": 10,
+            "credits_per_period": 2,  # 2 generations per day
             "max_products_per_batch": 5,
-            "max_api_calls_per_day": 50,
+            "max_api_calls_per_day": 2,
             "requests_per_minute": 5,
             "requests_per_hour": 50,
             "features": {
@@ -54,39 +58,39 @@ def create_default_plans():
             "sort_order": 1
         },
         {
-            "id": "basic",
-            "name": "Basic Plan",
-            "description": "Enhanced AI generation with more credits",
-            "price": 9.99,
+            "id": "pro",
+            "name": "Pro Plan",
+            "description": "Professional AI generation with enhanced features",
+            "price": 4.99,
             "currency": "USD",
             "billing_interval": "month",
-            "credits_per_period": 100,
-            "max_products_per_batch": 50,
-            "max_api_calls_per_day": 500,
-            "requests_per_minute": 20,
-            "requests_per_hour": 500,
+            "credits_per_period": 5,  # 5 generations per day
+            "max_products_per_batch": 200,
+            "max_api_calls_per_day": 5,
+            "requests_per_minute": 50,
+            "requests_per_hour": 2000,
             "features": {
                 "ai_generation": True,
                 "basic_templates": True,
                 "csv_upload": True,
                 "email_support": True,
-                "priority_support": False,
-                "custom_templates": False,
-                "api_access": False
+                "priority_support": True,
+                "custom_templates": True,
+                "api_access": True
             },
             "is_active": True,
             "sort_order": 2
         },
         {
-            "id": "pro",
-            "name": "Pro Plan",
-            "description": "Professional AI generation with unlimited credits",
-            "price": 29.99,
+            "id": "pro-yearly",
+            "name": "Yearly Plan",
+            "description": "Unlimited AI generation with enhanced features - Save 50%",
+            "price": 99.99,  # Yearly price with 50% discount
             "currency": "USD",
-            "billing_interval": "month",
-            "credits_per_period": 1000,
+            "billing_interval": "year",
+            "credits_per_period": 20,  # 20 generations per day
             "max_products_per_batch": 200,
-            "max_api_calls_per_day": 2000,
+            "max_api_calls_per_day": 5,
             "requests_per_minute": 50,
             "requests_per_hour": 2000,
             "features": {
@@ -105,12 +109,12 @@ def create_default_plans():
             "id": "enterprise",
             "name": "Enterprise Plan",
             "description": "Unlimited AI generation with premium features",
-            "price": 99.99,
+            "price": 14.99,
             "currency": "USD",
             "billing_interval": "month",
-            "credits_per_period": 10000,
+            "credits_per_period": 15,  # 15 generations per day
             "max_products_per_batch": 1000,
-            "max_api_calls_per_day": 10000,
+            "max_api_calls_per_day": 15,
             "requests_per_minute": 100,
             "requests_per_hour": 10000,
             "features": {

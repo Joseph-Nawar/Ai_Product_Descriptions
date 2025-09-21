@@ -145,6 +145,22 @@ class CreditService:
                     "subscription_tier": user_credits.subscription_tier.value
                 }
             
+            # NEW: Check daily generation limits based on subscription plan
+            daily_usage_count = self.db_service.get_daily_usage_count(user_id)
+            daily_limit = self.db_service.get_user_daily_limit(user_id)
+            
+            # Check if user has exceeded their daily limit
+            if daily_usage_count >= daily_limit:
+                return False, {
+                    "error": f"Daily generation limit exceeded. Used: {daily_usage_count}, Limit: {daily_limit}",
+                    "upgrade_required": True,
+                    "current_credits": user_credits.current_credits,
+                    "required_credits": required_credits,
+                    "daily_usage_count": daily_usage_count,
+                    "daily_limit": daily_limit,
+                    "subscription_tier": user_credits.subscription_tier.value
+                }
+            
             # Check rate limits
             can_proceed_rate, rate_info = self.db_service.check_rate_limits(user_id)
             if not can_proceed_rate:
@@ -165,6 +181,8 @@ class CreditService:
                 "subscription_tier": user_credits.subscription_tier.value,
                 "tier_limit": tier_limit,
                 "credits_used_this_period": user_credits.credits_used_this_period,
+                "daily_usage_count": daily_usage_count,
+                "daily_limit": daily_limit,
                 "rate_limits": rate_info.get("rate_limits", {})
             }
             

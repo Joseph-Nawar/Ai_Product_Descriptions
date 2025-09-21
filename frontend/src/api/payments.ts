@@ -35,7 +35,7 @@ export const subscriptionPlansApi = {
   getPlans: async (): Promise<SubscriptionPlan[]> => {
     try {
       const headers = paymentSecurity.generateSecureHeaders();
-      const response = await api.get<ApiResponse<SubscriptionPlan[]>>('/payment/plans', {
+      const response = await api.get<ApiResponse<SubscriptionPlan[]>>('/api/payment/plans', {
         headers
       });
       
@@ -91,7 +91,7 @@ export const userSubscriptionApi = {
    */
   getCurrent: async (): Promise<UserSubscription | null> => {
     try {
-      const response = await api.get<ApiResponse<UserSubscription | null>>('/payments/subscription');
+      const response = await api.get<ApiResponse<UserSubscription | null>>('/api/payment/user/subscription');
       return response.data.data;
     } catch (error) {
       throw new Error(handleApiError(error));
@@ -103,7 +103,7 @@ export const userSubscriptionApi = {
    */
   create: async (variantId: string, successUrl?: string, cancelUrl?: string): Promise<CheckoutSession> => {
     try {
-      const response = await api.post<ApiResponse<CheckoutSession>>('/payments/subscription', {
+      const response = await api.post<ApiResponse<CheckoutSession>>('/api/payment/checkout', {
         variant_id: variantId,
         success_url: successUrl,
         cancel_url: cancelUrl
@@ -172,7 +172,7 @@ export const creditBalanceApi = {
   getCurrent: async (): Promise<CreditBalance> => {
     try {
       const headers = paymentSecurity.generateSecureHeaders();
-      const response = await api.get<ApiResponse<CreditBalance>>('/payment/user/credits', {
+      const response = await api.get<ApiResponse<CreditBalance>>('/api/payment/user/credits', {
         headers
       });
       
@@ -215,7 +215,7 @@ export const creditBalanceApi = {
         current_credits?: number;
         error?: string;
         correlation_id?: string;
-      }>('/payment/user/credits/check', validation.sanitized, { headers });
+      }>('/api/payment/user/credits/check', validation.sanitized, { headers });
 
       paymentSecurity.logSecurityEvent({
         type: 'security_check',
@@ -280,7 +280,7 @@ export const creditBalanceApi = {
         transaction_id?: string;
         error?: string;
         correlation_id?: string;
-      }>('/payment/user/credits/deduct', validation.sanitized, { headers });
+      }>('/api/payment/user/credits/deduct', validation.sanitized, { headers });
 
       if (response.data.success) {
         paymentSecurity.logSecurityEvent({
@@ -327,7 +327,7 @@ export const creditBalanceApi = {
    */
   purchase: async (amount: number, variantId?: string): Promise<CheckoutSession> => {
     try {
-      const response = await api.post<ApiResponse<CheckoutSession>>('/payments/credits/purchase', {
+      const response = await api.post<ApiResponse<CheckoutSession>>('/api/payment/checkout', {
         amount,
         variant_id: variantId
       });
@@ -359,7 +359,7 @@ export const usageStatsApi = {
    */
   getStats: async (): Promise<UsageStats> => {
     try {
-      const response = await api.get<ApiResponse<UsageStats>>('/payments/usage');
+      const response = await api.get<ApiResponse<UsageStats>>('/api/payment/user/usage');
       return response.data.data;
     } catch (error) {
       throw new Error(handleApiError(error));
@@ -463,7 +463,7 @@ export const checkoutApi = {
    */
   createSubscriptionCheckout: async (variantId: string, successUrl?: string, cancelUrl?: string): Promise<CheckoutSession> => {
     try {
-      const response = await api.post<ApiResponse<CheckoutSession>>('/payments/checkout/subscription', {
+      const response = await api.post<ApiResponse<CheckoutSession>>('/api/payment/checkout', {
         variant_id: variantId,
         success_url: successUrl,
         cancel_url: cancelUrl
@@ -475,11 +475,47 @@ export const checkoutApi = {
   },
 
   /**
+   * Create customer portal session for subscription management
+   */
+  createPortalSession: async (): Promise<{ url: string }> => {
+    try {
+      const headers = paymentSecurity.generateSecureHeaders();
+      const response = await api.post<{
+        success: boolean;
+        url: string;
+        rate_limit_info?: any;
+      }>('/api/payment/portal', {}, { headers });
+      
+      // Log security event
+      paymentSecurity.logSecurityEvent({
+        type: 'security_check',
+        data: {
+          operation: 'create_portal_session',
+          portalUrl: response.data.url
+        },
+        severity: 'medium'
+      });
+      
+      return { url: response.data.url };
+    } catch (error) {
+      paymentSecurity.logSecurityEvent({
+        type: 'payment_attempt',
+        data: {
+          operation: 'create_portal_session_failed',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        severity: 'medium'
+      });
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  /**
    * Create checkout session for credit purchase
    */
   createCreditCheckout: async (amount: number, variantId?: string, successUrl?: string, cancelUrl?: string): Promise<CheckoutSession> => {
     try {
-      const response = await api.post<ApiResponse<CheckoutSession>>('/payments/checkout/credits', {
+      const response = await api.post<ApiResponse<CheckoutSession>>('/api/payment/checkout', {
         amount,
         variant_id: variantId,
         success_url: successUrl,
@@ -513,7 +549,7 @@ export const webhookApi = {
    */
   handleWebhook: async (webhookData: any): Promise<void> => {
     try {
-      await api.post('/payments/webhook', webhookData);
+      await api.post('/api/payment/webhook', webhookData);
     } catch (error) {
       throw new Error(handleApiError(error));
     }

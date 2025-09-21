@@ -55,12 +55,17 @@ class BillingService:
                     period_end = datetime.fromisoformat(period_end.replace("Z", "+00:00"))
                 except Exception:
                     period_end = None
+            
+            # Get customer ID from webhook data
+            customer_id = attrs.get("customer_id") or attrs.get("user_email")
+            
             subscription_repo.upsert_subscription(
                 self.db,
                 user_id=user_id,
                 plan=plan,
                 status=status,
                 current_period_end=period_end,
+                customer_id=customer_id,
             )
         elif etype in {"subscription_cancelled", "subscription_expired"}:
             sub = subscription_repo.get_by_user(self.db, user_id)

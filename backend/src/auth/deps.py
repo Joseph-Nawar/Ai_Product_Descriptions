@@ -3,7 +3,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from src.auth.firebase import get_current_user
-from app.db.session import get_db
+from src.database.deps import get_db
 from app.repos import user_repo
 
 

@@ -393,6 +393,8 @@ async def generate_description(
                 "current_credits": credit_info.get("current_credits", 0),
                 "required_credits": credit_info.get("required_credits", 1),
                 "subscription_tier": credit_info.get("subscription_tier", "free"),
+                "daily_usage_count": credit_info.get("daily_usage_count", 0),
+                "daily_limit": credit_info.get("daily_limit", 0),
                 "rate_limits": credit_info.get("rate_limits", {})
             }
         )
@@ -556,6 +558,8 @@ async def generate_batch_json(request: Dict[str, Any], user = Depends(get_curren
                 "subscription_tier": credit_info.get("subscription_tier", "free"),
                 "operation_type": operation_type.value,
                 "product_count": product_count,
+                "daily_usage_count": credit_info.get("daily_usage_count", 0),
+                "daily_limit": credit_info.get("daily_limit", 0),
                 "rate_limits": credit_info.get("rate_limits", {})
             }
         )
@@ -1085,6 +1089,8 @@ async def regenerate_description(item: Dict[str, Any], user = Depends(get_curren
                 "required_credits": credit_info.get("required_credits", 1),
                 "subscription_tier": credit_info.get("subscription_tier", "free"),
                 "operation_type": operation_type.value,
+                "daily_usage_count": credit_info.get("daily_usage_count", 0),
+                "daily_limit": credit_info.get("daily_limit", 0),
                 "rate_limits": credit_info.get("rate_limits", {})
             }
         )

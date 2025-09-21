@@ -35,6 +35,11 @@ class PaymentWebSocketService implements WebSocketService {
   }
 
   connect(): void {
+    // WebSocket endpoint not implemented on backend yet
+    // Disable WebSocket connection to prevent page crashes
+    console.log('WebSocket connection disabled - endpoint not implemented on backend');
+    return;
+    
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
     }
@@ -43,10 +48,12 @@ class PaymentWebSocketService implements WebSocketService {
       const wsUrl = import.meta.env.VITE_WS_URL || `ws://localhost:8000/ws/payments`;
       this.ws = new WebSocket(wsUrl);
 
-      this.ws.onopen = this.handleOpen.bind(this);
-      this.ws.onmessage = this.handleMessage.bind(this);
-      this.ws.onclose = this.handleClose.bind(this);
-      this.ws.onerror = this.handleError.bind(this);
+      if (this.ws) {
+        this.ws!.onopen = this.handleOpen.bind(this);
+        this.ws!.onmessage = this.handleMessage.bind(this);
+        this.ws!.onclose = this.handleClose.bind(this);
+        this.ws!.onerror = this.handleError.bind(this);
+      }
 
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);

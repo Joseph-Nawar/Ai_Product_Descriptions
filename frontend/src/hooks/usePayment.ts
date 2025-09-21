@@ -15,7 +15,7 @@ export const usePayment = () => {
     if (user) {
       paymentStore.refreshAll();
     }
-  }, [user, paymentStore.refreshAll]);
+  }, [user]); // Remove paymentStore.refreshAll from dependencies to prevent infinite loop
 
   // Helper functions
   const canGenerate = useCallback((creditsNeeded: number = 1): boolean => {

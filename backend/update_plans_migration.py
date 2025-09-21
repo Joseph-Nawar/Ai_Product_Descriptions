@@ -1,25 +1,36 @@
-# backend/src/payments/init_subscription_plans.py
+#!/usr/bin/env python3
 """
-Initialize subscription plans with correct credit limits
+Migration script to update subscription plans to the new structure
 
-This script ensures that the subscription plans are properly configured
-with the correct credit limits as specified in the requirements.
+This script updates the existing subscription plans in the database to match
+the new simplified three-tier structure with generation limits.
 """
 
 import logging
-from datetime import datetime, timezone
-from sqlalchemy.orm import Session
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
 
-from ..database.connection import get_session
-from ..models.payment_models import SubscriptionPlan
+# Load environment variables
+load_dotenv()
 
+# Add backend directory to path
+BACKEND_DIR = Path(__file__).parent
+sys.path.insert(0, str(BACKEND_DIR))
+
+from src.database.connection import get_session
+from src.models.payment_models import SubscriptionPlan
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def init_subscription_plans():
-    """Initialize subscription plans with correct credit limits"""
+def update_subscription_plans():
+    """Update subscription plans to the new structure"""
+    logger.info("🔄 Updating subscription plans to new structure...")
     
-    plans_data = [
+    # New plan structure
+    new_plans = [
         {
             "id": "free",
             "name": "Free Tier",
@@ -122,8 +133,16 @@ def init_subscription_plans():
     
     with get_session() as session:
         try:
-            for plan_data in plans_data:
-                # Check if plan already exists
+            # Deactivate old plans that are no longer needed
+            old_plan_ids = ["basic"]  # Remove the old "basic" plan
+            for old_id in old_plan_ids:
+                old_plan = session.query(SubscriptionPlan).filter_by(id=old_id).first()
+                if old_plan:
+                    old_plan.is_active = False
+                    logger.info(f"Deactivated old plan: {old_id}")
+            
+            # Update or create new plans
+            for plan_data in new_plans:
                 existing_plan = session.query(SubscriptionPlan).filter_by(id=plan_data["id"]).first()
                 
                 if existing_plan:
@@ -131,25 +150,44 @@ def init_subscription_plans():
                     for key, value in plan_data.items():
                         if hasattr(existing_plan, key):
                             setattr(existing_plan, key, value)
-                    existing_plan.updated_at = datetime.now(timezone.utc)
-                    logger.info(f"Updated subscription plan: {plan_data['id']}")
+                    logger.info(f"Updated plan: {plan_data['id']}")
                 else:
                     # Create new plan
                     plan = SubscriptionPlan(**plan_data)
                     session.add(plan)
-                    logger.info(f"Created subscription plan: {plan_data['id']}")
+                    logger.info(f"Created new plan: {plan_data['id']}")
             
             session.commit()
-            logger.info("Successfully initialized subscription plans")
+            logger.info("✅ Successfully updated subscription plans")
+            
+            # Show summary
+            active_plans = session.query(SubscriptionPlan).filter_by(is_active=True).order_by(SubscriptionPlan.sort_order).all()
+            logger.info(f"📊 Active plans ({len(active_plans)}):")
+            for plan in active_plans:
+                logger.info(f"  - {plan.name}: {plan.credits_per_period} generations/day, ${plan.price}/{plan.billing_interval}")
             
         except Exception as e:
             session.rollback()
-            logger.error(f"Failed to initialize subscription plans: {str(e)}")
+            logger.error(f"❌ Failed to update subscription plans: {str(e)}")
             raise
 
 
+def main():
+    """Main function"""
+    logger.info("🚀 Starting subscription plans migration...")
+    
+    try:
+        update_subscription_plans()
+        logger.info("🎉 Migration completed successfully!")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Migration failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 if __name__ == "__main__":
-    init_subscription_plans()
-
-
-
+    success = main()
+    sys.exit(0 if success else 1)

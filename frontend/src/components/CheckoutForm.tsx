@@ -82,10 +82,10 @@ export function CheckoutForm({ plan, onSuccess, onCancel, className = "" }: Chec
             </span>
           </div>
           <div className="text-sm text-gray-400">
-            Billed {plan.interval === 'month' ? 'monthly' : 'annually'}
+            Billed {plan.billing_interval === 'month' ? 'monthly' : 'annually'}
           </div>
           <div className="text-sm text-gray-400 mt-1">
-            {plan.credits.toLocaleString()} credits per {plan.interval}
+            {plan.credits_per_period.toLocaleString()} credits per {plan.billing_interval}
           </div>
         </div>
 

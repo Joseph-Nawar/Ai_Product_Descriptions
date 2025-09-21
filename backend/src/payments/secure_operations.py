@@ -269,9 +269,9 @@ class SecurePaymentOperations:
                 current_user_credits = await self._get_user_credits(user_id)
                 if current_user_credits:
                     transaction.rollback_data = {
-                        "previous_plan": current_user_credits.subscription_plan_id,
-                        "previous_tier": current_user_credits.subscription_tier.value,
-                        "previous_expires_at": current_user_credits.subscription_expires_at.isoformat() if current_user_credits.subscription_expires_at else None
+                        "previous_plan": current_user_credits.subscription_id,
+                        "previous_tier": current_user_credits.subscription.plan_id if current_user_credits.subscription else None,
+                        "previous_expires_at": current_user_credits.subscription.current_period_end.isoformat() if current_user_credits.subscription else None
                     }
                 
                 # Validate operation
@@ -442,7 +442,7 @@ class SecurePaymentOperations:
                 return False, errors
             
             # Check if already on the same plan
-            if user_credits.subscription_plan_id == new_plan_id:
+            if user_credits.subscription_id == new_plan_id:
                 errors.append("User is already on the requested plan")
             
             # Log validation
@@ -451,7 +451,7 @@ class SecurePaymentOperations:
                 user_id=user_id,
                 event_data={
                     "new_plan_id": new_plan_id,
-                    "current_plan_id": user_credits.subscription_plan_id,
+                    "current_plan_id": user_credits.subscription_id,
                     "validation_success": len(errors) == 0,
                     "errors": errors,
                     "transaction_id": transaction.transaction_id
@@ -830,10 +830,13 @@ class SecurePaymentOperations:
             self.transaction_locks[user_id] = asyncio.Lock()
         return self.transaction_locks[user_id]
     
-    async def _get_user_credits(self, user_id: str) -> Optional[UserCredits]:
+    async def _get_user_credits(self, user_id: str, db_session=None) -> Optional[UserCredits]:
         """Get user credits safely"""
         try:
-            return await self.db_service.get_user_credits(user_id)
+            if db_session:
+                return self.db_service.get_user_credits(db_session, user_id)
+            else:
+                return self.db_service.get_user_credits(user_id)
         except Exception as e:
             logger.error(f"Error getting user credits for {user_id}: {str(e)}")
             return None

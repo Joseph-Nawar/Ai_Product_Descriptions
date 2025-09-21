@@ -29,6 +29,9 @@ class Subscription(Base):
     current_period_end: Mapped[Optional[object]] = mapped_column(
         DateTime(timezone=True)
     )
+    # Lemon Squeezy integration
+    lemon_squeezy_customer_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    lemon_squeezy_subscription_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

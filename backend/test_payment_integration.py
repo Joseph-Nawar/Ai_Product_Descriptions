@@ -11,6 +11,10 @@ import json
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add backend directory to path
 BACKEND_DIR = Path(__file__).parent
@@ -37,7 +41,7 @@ async def test_payment_service():
         plans = await service.get_subscription_plans()
         print(f"✅ Found {len(plans)} subscription plans:")
         for plan in plans:
-            print(f"   - {plan['name']}: ${plan['price']}/{plan['interval']} ({plan['credits_per_month']} credits)")
+            print(f"   - {plan['name']}: ${plan['price']}/{plan.get('billing_interval', 'month')} ({plan.get('credits_per_period', 0)} credits)")
         
         # Test user creation
         print("\n3. Testing user creation...")

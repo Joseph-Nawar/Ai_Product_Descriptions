@@ -30,17 +30,19 @@ export function BillingDashboard({ className = "" }: BillingDashboardProps) {
       setLoading(true);
       setError(null);
       
-      const [subscriptionData, plansData, balanceData, usageData] = await Promise.all([
-        paymentApi.getSubscription().catch(() => null),
-        paymentApi.getPlans(),
-        paymentApi.getCreditBalance(),
-        paymentApi.getUsageStats()
-      ]);
-
+      // Sequential API calls to prevent database locking
+      const subscriptionData = await paymentApi.getSubscription().catch(() => null);
       setSubscription(subscriptionData);
+      
+      const plansData = await paymentApi.getPlans();
       setPlans(plansData);
+      
+      const balanceData = await paymentApi.getCreditBalance();
       setBalance(balanceData);
-      setUsageStats(usageData);
+      
+      // TODO: Endpoint not yet implemented. Commented out to prevent 404s and rate limiting.
+      // const usageData = await paymentApi.getUsageStats();
+      // setUsageStats(usageData);
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -171,14 +173,14 @@ export function BillingDashboard({ className = "" }: BillingDashboardProps) {
               <div className="text-lg font-semibold text-white">
                 {formatPrice(subscription.plan.price, subscription.plan.currency)}
                 <span className="text-sm text-gray-400 ml-1">
-                  /{subscription.plan.interval}
+                  /{subscription.plan.billing_interval}
                 </span>
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-400 mb-1">Credits</div>
               <div className="text-lg font-semibold text-white">
-                {subscription.plan.credits.toLocaleString()}
+                {subscription.plan.credits_per_period.toLocaleString()}
               </div>
             </div>
             <div>
@@ -321,10 +323,10 @@ export function BillingDashboard({ className = "" }: BillingDashboardProps) {
                       <h4 className="text-lg font-semibold text-white mb-2">{plan.name}</h4>
                       <div className="text-2xl font-bold text-primary mb-2">
                         {formatPrice(plan.price, plan.currency)}
-                        <span className="text-sm text-gray-400 ml-1">/{plan.interval}</span>
+                        <span className="text-sm text-gray-400 ml-1">/{plan.billing_interval}</span>
                       </div>
                       <div className="text-sm text-gray-400 mb-4">
-                        {plan.credits.toLocaleString()} credits
+                        {plan.credits_per_period.toLocaleString()} credits
                       </div>
                       <Button
                         variant="primary"

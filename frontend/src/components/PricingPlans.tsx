@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button, Banner, Spinner } from './UI';
 import { paymentApi, handleApiError } from '../api/client';
 import { SubscriptionPlan, CheckoutSession } from '../types';
+import { useSubscriptionPlans } from '../hooks/useSubscriptionPlans';
 
 interface PricingPlansProps {
   onPlanSelect?: (plan: SubscriptionPlan) => void;
@@ -10,33 +11,18 @@ interface PricingPlansProps {
 }
 
 export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: PricingPlansProps) {
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: plans = [], isLoading: loading, error: queryError, refetch } = useSubscriptionPlans();
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
 
-  useEffect(() => {
-    loadPlans();
-  }, []);
-
-  const loadPlans = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const plansData = await paymentApi.getPlans();
-      setPlans(plansData);
-    } catch (err) {
-      setError(handleApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Convert query error to string for display
+  const error = queryError ? handleApiError(queryError) : null;
 
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
     if (!plan.lemon_squeezy_variant_id) {
-      setError('This plan is not available for purchase at the moment.');
+      // Show user-friendly error message
+      alert('This plan is not available for purchase at the moment. Please try again later.');
       return;
     }
 
@@ -56,7 +42,10 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
       // Redirect to Lemon Squeezy checkout
       window.location.href = session.checkout_url;
     } catch (err) {
-      setError(handleApiError(err));
+      // Handle checkout error with user-friendly message
+      console.error('Checkout error:', err);
+      const errorMessage = handleApiError(err);
+      alert(`Unable to start checkout process: ${errorMessage}`);
       setCheckoutLoading(false);
       setSelectedPlan(null);
     }
@@ -69,11 +58,16 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
     }).format(price);
   };
 
-  const getPlanCredits = (plan: SubscriptionPlan) => {
-    return plan.interval === 'year' ? plan.credits * 12 : plan.credits;
+  const getPlanGenerations = (plan: SubscriptionPlan) => {
+    // For display purposes, show daily generations regardless of billing interval
+    return plan.credits_per_period;
   };
 
-  const filteredPlans = plans.filter(plan => plan.interval === billingInterval);
+  const getPlanCredits = (plan: SubscriptionPlan) => {
+    return plan.billing_interval === 'year' ? plan.credits_per_period * 12 : plan.credits_per_period;
+  };
+
+  const filteredPlans = (plans || []).filter(plan => plan.billing_interval === billingInterval);
 
   if (loading) {
     return (
@@ -88,7 +82,7 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
       <div className={className}>
         <Banner type="error">{error}</Banner>
         <div className="mt-4 text-center">
-          <Button onClick={loadPlans} variant="secondary">
+          <Button onClick={() => refetch()} variant="secondary">
             Try Again
           </Button>
         </div>
@@ -121,14 +115,18 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
           >
             Yearly
             <span className="ml-1 text-xs bg-emerald-500 text-white px-1.5 py-0.5 rounded">
-              Save 20%
+              Save 50%
             </span>
           </button>
         </div>
       </div>
 
       {/* Plans Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className={`grid gap-6 ${
+        billingInterval === 'year' 
+          ? 'grid-cols-1 md:grid-cols-1 lg:grid-cols-1 max-w-md mx-auto' 
+          : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+      }`}>
         {filteredPlans.map((plan) => {
           const isCurrentPlan = currentPlanId === plan.id;
           const isSelected = selectedPlan?.id === plan.id;
@@ -171,35 +169,45 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
                       {formatPrice(plan.price, plan.currency)}
                     </span>
                     <span className="text-gray-400 ml-2">
-                      /{plan.interval === 'month' ? 'month' : 'year'}
+                      /{plan.billing_interval === 'month' ? 'month' : 'year'}
                     </span>
                   </div>
 
                   <div className="text-center">
                     <span className="text-2xl font-bold text-primary">
-                      {getPlanCredits(plan).toLocaleString()}
+                      {getPlanGenerations(plan).toLocaleString()}
                     </span>
-                    <span className="text-gray-400 ml-2">credits</span>
+                    <span className="text-gray-400 ml-2">generations/day</span>
                   </div>
                 </div>
 
                 <div className="space-y-3 mb-6">
-                  {plan.features.map((feature, index) => (
-                    <div key={index} className="flex items-center text-sm">
-                      <svg
-                        className="w-4 h-4 text-emerald-500 mr-3 flex-shrink-0"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span className="text-gray-300">{feature}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    // Handle both array and object formats for features
+                    const features = plan.features;
+                    if (!features) return null;
+                    
+                    const featureList = Array.isArray(features) 
+                      ? features 
+                      : Object.values(features).filter(value => typeof value === 'string');
+                    
+                    return featureList.map((feature, index) => (
+                      <div key={index} className="flex items-center text-sm">
+                        <svg
+                          className="w-4 h-4 text-emerald-500 mr-3 flex-shrink-0"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-gray-300">{feature}</span>
+                      </div>
+                    ));
+                  })()}
                 </div>
 
                 <Button
@@ -228,8 +236,7 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
 
       {/* Additional Info */}
       <div className="text-center text-gray-400 text-sm">
-        <p>All plans include 30-day money-back guarantee</p>
-        <p className="mt-1">Cancel anytime • No setup fees • Secure payments</p>
+        <p>No setup fees • Secure payments</p>
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ export const checkoutRequestSchema = z.object({
 
 export const creditDeductionSchema = z.object({
   amount: z.number().int().min(1, 'Amount must be at least 1').max(50, 'Amount cannot exceed 50'),
-  operation_context: z.record(z.any()).optional()
+  operation_context: z.record(z.string(), z.any()).optional()
 });
 
 export const creditCheckSchema = z.object({
@@ -84,7 +84,7 @@ export class PaymentSecurityService {
       if (error instanceof z.ZodError) {
         return {
           isValid: false,
-          errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+          errors: error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
         };
       }
       return {
@@ -109,7 +109,7 @@ export class PaymentSecurityService {
       if (error instanceof z.ZodError) {
         return {
           isValid: false,
-          errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+          errors: error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
         };
       }
       return {
@@ -134,7 +134,7 @@ export class PaymentSecurityService {
       if (error instanceof z.ZodError) {
         return {
           isValid: false,
-          errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+          errors: error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
         };
       }
       return {

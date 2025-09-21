@@ -58,7 +58,7 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [user, payment.refreshPaymentData]);
+  }, [user]); // Remove payment.refreshPaymentData from dependencies to prevent infinite loop
 
   const contextValue: PaymentContextType = {
     payment,

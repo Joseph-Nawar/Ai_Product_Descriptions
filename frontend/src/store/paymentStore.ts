@@ -157,8 +157,8 @@ export const usePaymentStore = create<PaymentState>()(
         fetchSubscriptionPlans: async () => {
           set({ subscriptionLoading: true, subscriptionError: null });
           try {
-            const { paymentsApi } = await import('../api/payments');
-            const plans = await paymentsApi.plans.getPlans();
+            const { paymentApi } = await import('../api/client');
+            const plans = await paymentApi.getPlans();
             set({ 
               subscriptionPlans: plans,
               subscriptionLoading: false 
@@ -175,8 +175,8 @@ export const usePaymentStore = create<PaymentState>()(
         fetchCurrentSubscription: async () => {
           set({ subscriptionLoading: true, subscriptionError: null });
           try {
-            const { paymentsApi } = await import('../api/payments');
-            const subscription = await paymentsApi.subscription.getCurrent();
+            const { paymentApi } = await import('../api/client');
+            const subscription = await paymentApi.getSubscription();
             set({ 
               currentSubscription: subscription,
               subscriptionLoading: false 
@@ -193,8 +193,8 @@ export const usePaymentStore = create<PaymentState>()(
         fetchCreditBalance: async () => {
           set({ creditLoading: true, creditError: null });
           try {
-            const { paymentsApi } = await import('../api/payments');
-            const balance = await paymentsApi.credits.getCurrent();
+            const { paymentApi } = await import('../api/client');
+            const balance = await paymentApi.getCreditBalance();
             set({ 
               creditBalance: balance,
               creditLoading: false 
@@ -217,10 +217,17 @@ export const usePaymentStore = create<PaymentState>()(
         fetchUsageStats: async () => {
           set({ usageLoading: true, usageError: null });
           try {
-            const { paymentsApi } = await import('../api/payments');
-            const stats = await paymentsApi.usage.getStats();
+            // TODO: Endpoint not yet implemented. Commented out to prevent 404s and rate limiting.
+            // const { paymentApi } = await import('../api/client');
+            // const stats = await paymentApi.getUsageStats();
+            // set({ 
+            //   usageStats: stats,
+            //   usageLoading: false 
+            // });
+            
+            // Use initial stats for now
             set({ 
-              usageStats: stats,
+              usageStats: initialUsageStats,
               usageLoading: false 
             });
           } catch (error) {
@@ -235,12 +242,21 @@ export const usePaymentStore = create<PaymentState>()(
         fetchPaymentHistory: async (page = 1, reset = false) => {
           set({ historyLoading: true, historyError: null });
           try {
-            const { paymentsApi } = await import('../api/payments');
-            const response = await paymentsApi.history.getHistory(page, 10);
+            // TODO: Endpoint not yet implemented. Commented out to prevent 404s and rate limiting.
+            // const { paymentApi } = await import('../api/client');
+            // const response = await paymentApi.getPaymentHistory();
+            // 
+            // set(state => ({
+            //   paymentHistory: reset ? response.data : [...state.paymentHistory, ...response.data],
+            //   hasMoreHistory: response.has_more || false,
+            //   historyPage: page,
+            //   historyLoading: false
+            // }));
             
+            // Use empty array for now
             set(state => ({
-              paymentHistory: reset ? response.data : [...state.paymentHistory, ...response.data],
-              hasMoreHistory: response.has_more || false,
+              paymentHistory: reset ? [] : state.paymentHistory,
+              hasMoreHistory: false,
               historyPage: page,
               historyLoading: false
             }));
@@ -256,8 +272,8 @@ export const usePaymentStore = create<PaymentState>()(
         createCheckoutSession: async (variantId: string, successUrl?: string, cancelUrl?: string) => {
           set({ checkoutLoading: true, checkoutError: null });
           try {
-            const { paymentsApi } = await import('../api/payments');
-            const session = await paymentsApi.checkout.createSubscriptionCheckout(variantId, successUrl, cancelUrl);
+            const { paymentApi } = await import('../api/client');
+            const session = await paymentApi.createCheckoutSession(variantId, successUrl, cancelUrl);
             set({ 
               checkoutSession: session,
               checkoutLoading: false 
@@ -275,8 +291,8 @@ export const usePaymentStore = create<PaymentState>()(
         // Cancel Subscription
         cancelSubscription: async (subscriptionId: string) => {
           try {
-            const { paymentsApi } = await import('../api/payments');
-            await paymentsApi.subscription.cancel(subscriptionId);
+            const { paymentApi } = await import('../api/client');
+            await paymentApi.cancelSubscription(subscriptionId);
             
             // Refresh subscription data
             await get().fetchCurrentSubscription();
@@ -289,8 +305,8 @@ export const usePaymentStore = create<PaymentState>()(
         // Reactivate Subscription
         reactivateSubscription: async (subscriptionId: string) => {
           try {
-            const { paymentsApi } = await import('../api/payments');
-            await paymentsApi.subscription.reactivate(subscriptionId);
+            const { paymentApi } = await import('../api/client');
+            await paymentApi.reactivateSubscription(subscriptionId);
             
             // Refresh subscription data
             await get().fetchCurrentSubscription();
@@ -303,8 +319,8 @@ export const usePaymentStore = create<PaymentState>()(
         // Update Subscription
         updateSubscription: async (subscriptionId: string, variantId: string) => {
           try {
-            const { paymentsApi } = await import('../api/payments');
-            await paymentsApi.subscription.update(subscriptionId, variantId);
+            const { paymentApi } = await import('../api/client');
+            await paymentApi.updateSubscription(subscriptionId, variantId);
             
             // Refresh subscription data
             await get().fetchCurrentSubscription();
@@ -354,6 +370,11 @@ export const usePaymentStore = create<PaymentState>()(
 
         // WebSocket Management
         connectWebSocket: () => {
+          // WebSocket endpoint not implemented on backend yet
+          // Disable WebSocket connection to prevent page crashes
+          console.log('WebSocket connection disabled - endpoint not implemented on backend');
+          return;
+          
           const { wsState } = get();
           if (wsState.connected || wsState.reconnecting) return;
 
@@ -509,11 +530,14 @@ export const usePaymentStore = create<PaymentState>()(
 
         refreshAll: async () => {
           const promises = [
-            get().fetchSubscriptionPlans(),
+            // Only fetch subscription plans if not already cached
+            // The PricingPlans component now uses TanStack Query for caching
+            // get().fetchSubscriptionPlans(), // Commented out to prevent duplicate calls
             get().fetchCurrentSubscription(),
             get().fetchCreditBalance(),
-            get().fetchUsageStats(),
-            get().fetchPaymentHistory(1, true)
+            // TODO: Endpoints not yet implemented. Commented out to prevent 404s and rate limiting.
+            // get().fetchUsageStats(),
+            // get().fetchPaymentHistory(1, true)
           ];
           
           await Promise.allSettled(promises);

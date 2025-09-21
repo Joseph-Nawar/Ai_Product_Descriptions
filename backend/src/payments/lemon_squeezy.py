@@ -175,11 +175,16 @@ class LemonSqueezyService:
     async def create_checkout_session(
         self, 
         user_id: str, 
+        user_email: str,
         plan_id: str, 
         success_url: str, 
         cancel_url: str
     ) -> Dict[str, Any]:
         """Create a checkout session for subscription purchase"""
+        # Validate email
+        if not user_email or "@" not in user_email:
+            raise ValueError("Valid user email is required for checkout session")
+        
         plan = self.default_plans.get(plan_id)
         if not plan:
             raise ValueError(f"Invalid plan ID: {plan_id}")
@@ -205,7 +210,7 @@ class LemonSqueezyService:
                 "type": "checkouts",
                 "attributes": {
                     "checkout_data": {
-                        "email": f"user_{user_id}@example.com",  # This should be the actual user email
+                        "email": user_email,  # Use the actual authenticated user's email
                         "custom": {
                             "user_id": user_id,
                             "plan_id": plan_id
@@ -244,11 +249,17 @@ class LemonSqueezyService:
             logger.error(f"Error creating checkout session: {str(e)}")
             raise Exception(f"Failed to create checkout session: {str(e)}")
     
-    async def get_subscription_plans(self) -> List[Dict[str, Any]]:
+    async def get_subscription_plans(self, db_session=None) -> List[Dict[str, Any]]:
         """Get available subscription plans"""
         # Try to get from database first, fallback to default plans
         try:
-            db_plans = self.db_service.get_subscription_plans()
+            if db_session:
+                db_plans = self.db_service.get_subscription_plans(db_session)
+            else:
+                # Use a temporary session for backward compatibility
+                from ..database.deps import get_db_session
+                with get_db_session() as session:
+                    db_plans = self.db_service.get_subscription_plans(session)
             if db_plans:
                 return db_plans
         except Exception as e:
@@ -257,17 +268,35 @@ class LemonSqueezyService:
         # Fallback to default plans
         return [plan.to_dict() for plan in self.default_plans.values() if plan.is_active]
     
-    async def get_user_credits(self, user_id: str) -> Optional[UserCredits]:
+    async def get_user_credits(self, user_id: str, db_session=None) -> Optional[UserCredits]:
         """Get user credits from database"""
-        return self.db_service.get_user_credits(user_id)
+        if db_session:
+            return self.db_service.get_user_credits(db_session, user_id)
+        else:
+            # Use a temporary session for backward compatibility
+            from ..database.deps import get_db_session
+            with get_db_session() as session:
+                return self.db_service.get_user_credits(session, user_id)
     
-    async def update_user_credits(self, user_credits: UserCredits) -> bool:
+    async def update_user_credits(self, user_credits: UserCredits, db_session=None) -> bool:
         """Update user credits in database"""
-        return self.db_service.update_user_credits(user_credits)
+        if db_session:
+            return self.db_service.update_user_credits(db_session, user_credits)
+        else:
+            # Use a temporary session for backward compatibility
+            from ..database.deps import get_db_session
+            with get_db_session() as session:
+                return self.db_service.update_user_credits(session, user_credits)
     
-    async def add_payment_history(self, payment: PaymentHistory) -> bool:
+    async def add_payment_history(self, payment: PaymentHistory, db_session=None) -> bool:
         """Add payment to history"""
-        return self.db_service.add_payment_history(payment)
+        if db_session:
+            return self.db_service.add_payment_history(db_session, payment)
+        else:
+            # Use a temporary session for backward compatibility
+            from ..database.deps import get_db_session
+            with get_db_session() as session:
+                return self.db_service.add_payment_history(session, payment)
     
     async def process_webhook(self, payload: str, signature: str) -> Dict[str, Any]:
         """Process incoming webhook from Lemon Squeezy"""
@@ -331,13 +360,17 @@ class LemonSqueezyService:
             
             # Extract order information
             order_id = order_data.get("id")
-            user_id = attributes.get("user_email", "").split("@")[0]  # Extract user ID from email
             amount = float(attributes.get("total", 0)) / 100  # Convert from cents
             currency = attributes.get("currency", "USD")
             
-            # Get custom data
+            # Get custom data - this contains the actual user_id
             custom_data = attributes.get("checkout_data", {}).get("custom", {})
+            user_id = custom_data.get("user_id")  # Get user_id from custom data instead of email
             plan_id = custom_data.get("plan_id", "basic")
+            
+            if not user_id:
+                logger.error(f"No user_id found in custom data for order {order_id}")
+                return {"status": "error", "reason": "No user_id in custom data"}
             
             # Get plan details
             plan = self.default_plans.get(plan_id)
@@ -354,7 +387,7 @@ class LemonSqueezyService:
                 status=PaymentStatus.COMPLETED,
                 lemon_squeezy_order_id=order_id,
                 credits_awarded=plan.credits_per_month,
-                subscription_plan_id=plan_id
+                subscription_id=plan_id
             )
             
             # Add to payment history
@@ -364,9 +397,7 @@ class LemonSqueezyService:
             user_credits = await self.get_user_credits(user_id)
             if user_credits:
                 user_credits.add_credits(plan.credits_per_month, "purchase")
-                user_credits.subscription_tier = SubscriptionTier(plan_id)
-                user_credits.subscription_plan_id = plan_id
-                user_credits.subscription_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+                user_credits.subscription_id = plan_id
                 await self.update_user_credits(user_credits)
             
             logger.info(f"Payment success processed: {order_id} for user {user_id}")
@@ -399,7 +430,12 @@ class LemonSqueezyService:
             attributes = subscription_data.get("attributes", {})
             
             # Extract subscription information
-            user_id = attributes.get("user_email", "").split("@")[0]
+            # Get user_id from custom data if available, otherwise fallback to email parsing
+            custom_data = attributes.get("checkout_data", {}).get("custom", {})
+            user_id = custom_data.get("user_id")
+            if not user_id:
+                # Fallback for backward compatibility with old webhook data
+                user_id = attributes.get("user_email", "").split("@")[0]
             status = attributes.get("status")
             
             logger.info(f"Subscription created: {subscription_id} for user {user_id}, status: {status}")
@@ -418,14 +454,17 @@ class LemonSqueezyService:
             attributes = subscription_data.get("attributes", {})
             
             # Extract subscription information
-            user_id = attributes.get("user_email", "").split("@")[0]
+            # Get user_id from custom data if available, otherwise fallback to email parsing
+            custom_data = attributes.get("checkout_data", {}).get("custom", {})
+            user_id = custom_data.get("user_id")
+            if not user_id:
+                # Fallback for backward compatibility with old webhook data
+                user_id = attributes.get("user_email", "").split("@")[0]
             
             # Update user to free tier
             user_credits = await self.get_user_credits(user_id)
             if user_credits:
-                user_credits.subscription_tier = SubscriptionTier.FREE
-                user_credits.subscription_plan_id = None
-                user_credits.subscription_expires_at = None
+                user_credits.subscription_id = None
                 await self.update_user_credits(user_credits)
             
             logger.info(f"Subscription cancelled: {subscription_id} for user {user_id}")
@@ -444,7 +483,12 @@ class LemonSqueezyService:
             attributes = subscription_data.get("attributes", {})
             
             # Extract subscription information
-            user_id = attributes.get("user_email", "").split("@")[0]
+            # Get user_id from custom data if available, otherwise fallback to email parsing
+            custom_data = attributes.get("checkout_data", {}).get("custom", {})
+            user_id = custom_data.get("user_id")
+            if not user_id:
+                # Fallback for backward compatibility with old webhook data
+                user_id = attributes.get("user_email", "").split("@")[0]
             status = attributes.get("status")
             
             logger.info(f"Subscription updated: {subscription_id} for user {user_id}, status: {status}")
@@ -455,10 +499,48 @@ class LemonSqueezyService:
             logger.error(f"Error handling subscription update: {str(e)}")
             return {"status": "error", "reason": str(e)}
     
-    async def check_rate_limit(self, user_id: str) -> Tuple[bool, Dict[str, Any]]:
+    async def check_rate_limit(self, user_id: str, db_session=None) -> Tuple[bool, Dict[str, Any]]:
         """Check if user is within rate limits"""
-        return self.db_service.check_rate_limits(user_id)
+        if db_session:
+            return self.db_service.check_rate_limits(db_session, user_id)
+        else:
+            # Use a temporary session for backward compatibility
+            from ..database.deps import get_db_session
+            with get_db_session() as session:
+                return self.db_service.check_rate_limits(session, user_id)
     
-    async def deduct_credits(self, user_id: str, amount: int = 1) -> Tuple[bool, Dict[str, Any]]:
+    async def deduct_credits(self, user_id: str, amount: int = 1, db_session=None) -> Tuple[bool, Dict[str, Any]]:
         """Deduct credits from user account"""
-        return self.db_service.use_credits(user_id, amount)
+        if db_session:
+            return self.db_service.use_credits(db_session, user_id, amount)
+        else:
+            # Use a temporary session for backward compatibility
+            from ..database.deps import get_db_session
+            with get_db_session() as session:
+                return self.db_service.use_credits(session, user_id, amount)
+    
+    async def create_portal_session(self, customer_id: str) -> Dict[str, Any]:
+        """Create a customer portal session for subscription management"""
+        if not customer_id:
+            raise ValueError("Customer ID is required for portal session")
+        
+        # Create portal session data
+        portal_data = {
+            "data": {
+                "type": "customer-portals",
+                "attributes": {
+                    "customer_id": customer_id
+                }
+            }
+        }
+        
+        try:
+            response = await self._make_request("POST", "customer-portals", portal_data)
+            
+            return {
+                "success": True,
+                "url": response["data"]["attributes"]["url"]
+            }
+        except Exception as e:
+            logger.error(f"Error creating portal session: {str(e)}")
+            raise Exception(f"Failed to create portal session: {str(e)}")

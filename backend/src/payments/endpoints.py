@@ -17,7 +17,7 @@ from .rate_limiting import rate_limiting_service
 from .secure_operations import SecurePaymentOperations
 from ..auth.firebase import get_current_user
 from ..auth.deps import get_authed_user_db
-from app.db.session import get_db
+from src.database.deps import get_db
 from app.services.billing_service import BillingService
 from sqlalchemy.orm import Session
 import json
@@ -94,7 +94,7 @@ def get_client_info(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/plans")
-async def get_subscription_plans(request: Request):
+async def get_subscription_plans(request: Request, db: Session = Depends(get_db)):
     """Get available subscription plans with rate limiting and env variant IDs"""
     client_info = get_client_info(request)
     
@@ -125,25 +125,15 @@ async def get_subscription_plans(request: Request):
         monthly_id = os.getenv("LEMON_SQUEEZY_MONTHLY_VARIANT_ID")
         yearly_id = os.getenv("LEMON_SQUEEZY_YEARLY_VARIANT_ID")
         store_id = os.getenv("LEMON_SQUEEZY_STORE_ID")
-        # Return basic env-wired plans; fall back to service defaults if missing
-        env_plans = []
-        if monthly_id:
-            env_plans.append({
-                "id": "monthly",
-                "name": "Monthly",
-                "interval": "month",
-                "lemon_squeezy_variant_id": monthly_id,
-                "store_id": store_id,
-            })
-        if yearly_id:
-            env_plans.append({
-                "id": "yearly",
-                "name": "Yearly",
-                "interval": "year",
-                "lemon_squeezy_variant_id": yearly_id,
-                "store_id": store_id,
-            })
-        plans = env_plans or await lemon_squeezy.get_subscription_plans()
+        # Return complete plan data with all required fields
+        plans = await lemon_squeezy.get_subscription_plans(db_session=db)
+        
+        # Override variant IDs from environment if available
+        for plan in plans:
+            if plan["id"] in ("basic", "monthly") and monthly_id:
+                plan["lemon_squeezy_variant_id"] = monthly_id
+            elif plan["id"] in ("pro", "yearly") and yearly_id:
+                plan["lemon_squeezy_variant_id"] = yearly_id
         
         security_service.log_audit_event(
             event_type=AuditEventType.SUBSCRIPTION_CREATED,
@@ -180,7 +170,8 @@ async def get_subscription_plans(request: Request):
 async def create_checkout_session(
     request_data: CheckoutRequest,
     request: Request,
-    auth = Depends(get_authed_user_db)
+    auth = Depends(get_authed_user_db),
+    db: Session = Depends(get_db)
 ):
     """Create a checkout session for subscription purchase with comprehensive security"""
     client_info = get_client_info(request)
@@ -248,7 +239,7 @@ async def create_checkout_session(
             )
         
         # Fraud detection
-        user_credits = await lemon_squeezy.get_user_credits(user_id)
+        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
         user_data = {
             "user_id": user_id,
             "email": claims.get("email", ""),
@@ -282,6 +273,7 @@ async def create_checkout_session(
         
         result = await lemon_squeezy.create_checkout_session(
             user_id=user_id,
+            user_email=claims.get("email", ""),
             plan_id=request_data.plan_id,
             success_url=request_data.success_url,
             cancel_url=request_data.cancel_url
@@ -514,7 +506,7 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/user/credits")
-async def get_user_credits(auth = Depends(get_authed_user_db)):
+async def get_user_credits(auth = Depends(get_authed_user_db), db: Session = Depends(get_db)):
     """Get user's current credits and subscription status"""
     try:
         claims = auth["claims"]
@@ -526,10 +518,10 @@ async def get_user_credits(auth = Depends(get_authed_user_db)):
                 detail="User ID not found in token",
             )
 
-        user_credits = await lemon_squeezy.get_user_credits(user_id)
+        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
         if not user_credits:
             # Create new user with free tier
-            user_credits = lemon_squeezy.db_service.create_user_credits(user_id, "free")
+            user_credits = lemon_squeezy.db_service.create_user_credits(db, user_id, "free")
 
         return {
             "success": True,
@@ -548,7 +540,8 @@ async def get_user_credits(auth = Depends(get_authed_user_db)):
 async def check_user_credits(
     request_data: CreditCheckRequest,
     request: Request,
-    auth = Depends(get_authed_user_db)
+    auth = Depends(get_authed_user_db),
+    db: Session = Depends(get_db)
 ):
     """Check if user has sufficient credits for generation with enhanced security"""
     client_info = get_client_info(request)
@@ -620,7 +613,7 @@ async def check_user_credits(
             }
         
         # Check if user can generate the requested batch size
-        user_credits = await lemon_squeezy.get_user_credits(user_id)
+        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
         if user_credits and not user_credits.can_generate(batch_size):
             security_service.log_audit_event(
                 event_type=AuditEventType.CREDIT_DEDUCTED,
@@ -821,7 +814,7 @@ async def deduct_user_credits(
 
 
 @router.get("/user/subscription")
-async def get_user_subscription(auth = Depends(get_authed_user_db)):
+async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session = Depends(get_db)):
     """Get user's subscription details"""
     try:
         claims = auth["claims"]
@@ -833,7 +826,7 @@ async def get_user_subscription(auth = Depends(get_authed_user_db)):
                 detail="User ID not found in token",
             )
 
-        user_credits = await lemon_squeezy.get_user_credits(user_id)
+        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
         if not user_credits:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -844,20 +837,28 @@ async def get_user_subscription(auth = Depends(get_authed_user_db)):
         plans = await lemon_squeezy.get_subscription_plans()
         current_plan = None
         for plan in plans:
-            if plan["id"] == user_credits.subscription_plan_id:
+            if plan["id"] == user_credits.subscription_id:
                 current_plan = plan
                 break
 
+        # Return subscription data in the format expected by the frontend
+        if user_credits.subscription and current_plan:
+            subscription_data = {
+                "id": user_credits.subscription.id,
+                "plan_id": user_credits.subscription.plan_id,
+                "status": user_credits.subscription.status,
+                "current_period_start": user_credits.subscription.current_period_start.isoformat() if user_credits.subscription.current_period_start else None,
+                "current_period_end": user_credits.subscription.current_period_end.isoformat() if user_credits.subscription.current_period_end else None,
+                "cancel_at_period_end": False,  # Default value
+                "lemon_squeezy_subscription_id": user_credits.subscription.lemon_squeezy_subscription_id,
+                "plan": current_plan
+            }
+        else:
+            subscription_data = None
+
         return {
             "success": True,
-            "data": {
-                "subscription_tier": user_credits.subscription_tier.value,
-                "subscription_plan": current_plan,
-                "subscription_expires_at": user_credits.subscription_expires_at.isoformat() if user_credits.subscription_expires_at else None,
-                "current_credits": user_credits.current_credits,
-                "total_credits_purchased": user_credits.total_credits_purchased,
-                "total_credits_used": user_credits.total_credits_used,
-            },
+            "data": subscription_data,
         }
 
     except Exception as e:
@@ -865,6 +866,117 @@ async def get_user_subscription(auth = Depends(get_authed_user_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get user subscription: {str(e)}",
+        )
+
+
+@router.post("/portal")
+async def create_customer_portal(
+    request: Request,
+    auth = Depends(get_authed_user_db),
+    db: Session = Depends(get_db)
+):
+    """Create a customer portal session for subscription management"""
+    client_info = get_client_info(request)
+    claims = auth["claims"]
+    user_row = auth["user"]
+    user_id = claims.get("uid")
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found in token"
+        )
+    
+    # Check rate limits
+    allowed, rate_info = rate_limiting_service.check_rate_limit(
+        endpoint="portal",
+        user_id=user_id,
+        ip_address=client_info["ip_address"]
+    )
+    
+    if not allowed:
+        security_service.log_audit_event(
+            event_type=AuditEventType.RATE_LIMIT_EXCEEDED,
+            user_id=user_id,
+            ip_address=client_info["ip_address"],
+            user_agent=client_info["user_agent"],
+            event_data=rate_info,
+            security_level=SecurityLevel.MEDIUM,
+            success=False,
+            correlation_id=client_info["correlation_id"]
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please try again later.",
+            headers={"X-RateLimit-Info": str(rate_info)}
+        )
+    
+    try:
+        # Import here to avoid circular imports
+        from app.repos.subscription_repo import get_customer_id_by_user
+        
+        # Get user's Lemon Squeezy customer ID
+        customer_id = get_customer_id_by_user(db, user_id)
+        
+        if not customer_id:
+            security_service.log_audit_event(
+                event_type=AuditEventType.PAYMENT_FAILED,
+                user_id=user_id,
+                ip_address=client_info["ip_address"],
+                user_agent=client_info["user_agent"],
+                event_data={"error": "no_customer_id"},
+                security_level=SecurityLevel.MEDIUM,
+                success=False,
+                error_message="No customer ID found for user",
+                correlation_id=client_info["correlation_id"]
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No subscription found. Please subscribe to a plan first to access the customer portal."
+            )
+        
+        # Create portal session
+        result = await lemon_squeezy.create_portal_session(customer_id)
+        
+        # Log successful portal creation
+        security_service.log_audit_event(
+            event_type=AuditEventType.PAYMENT_CREATED,
+            user_id=user_id,
+            ip_address=client_info["ip_address"],
+            user_agent=client_info["user_agent"],
+            event_data={
+                "customer_id": customer_id,
+                "portal_url": result.get("url", "")
+            },
+            security_level=SecurityLevel.MEDIUM,
+            success=True,
+            correlation_id=client_info["correlation_id"]
+        )
+        
+        return {
+            "success": True,
+            "url": result["url"],
+            "rate_limit_info": rate_info
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating customer portal: {str(e)}")
+        security_service.log_audit_event(
+            event_type=AuditEventType.PAYMENT_FAILED,
+            user_id=user_id,
+            ip_address=client_info["ip_address"],
+            user_agent=client_info["user_agent"],
+            event_data={"error": str(e)},
+            security_level=SecurityLevel.HIGH,
+            success=False,
+            error_message=str(e),
+            correlation_id=client_info["correlation_id"]
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create customer portal: {str(e)}"
         )
 
 

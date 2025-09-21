@@ -23,8 +23,9 @@ export function UsageStats({ onRefresh, className = "", showCharts = true }: Usa
     try {
       setLoading(true);
       setError(null);
-      const statsData = await paymentApi.getUsageStats();
-      setStats(statsData);
+      // TODO: Endpoint not yet implemented. Commented out to prevent 404s and rate limiting.
+      // const statsData = await paymentApi.getUsageStats();
+      // setStats(statsData);
     } catch (err) {
       setError(handleApiError(err));
     } finally {

@@ -43,11 +43,16 @@ export type SubscriptionPlan = {
   description: string;
   price: number;
   currency: string;
-  interval: 'month' | 'year';
-  credits: number;
-  features: string[];
+  billing_interval: 'month' | 'year';
+  credits_per_period: number;
+  max_products_per_batch: number;
+  features: string[] | Record<string, any>;
   popular?: boolean;
   lemon_squeezy_variant_id?: string;
+  store_id?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type UserSubscription = {
