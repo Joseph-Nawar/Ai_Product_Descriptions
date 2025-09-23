@@ -178,10 +178,11 @@ export const usePaymentStore = create<PaymentState>()(
             const { paymentApi } = await import('../api/client');
             const subscription = await paymentApi.getSubscription();
             set({ 
-              currentSubscription: subscription,
+              currentSubscription: subscription, // This will be null if no subscription exists (404 handled in API)
               subscriptionLoading: false 
             });
           } catch (error) {
+            // For other errors (500, network issues, etc.), set the error
             set({ 
               subscriptionError: error instanceof Error ? error.message : 'Failed to fetch subscription',
               subscriptionLoading: false 

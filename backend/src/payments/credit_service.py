@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 from enum import Enum
+from sqlalchemy.orm import Session
 
 from .sqlalchemy_service import SQLAlchemyPaymentService
 from ..models.payment_models import (
@@ -44,13 +45,7 @@ class CreditService:
             OperationType.CSV_UPLOAD: 1  # Per product in CSV
         }
         
-        # Subscription tier limits (credits per month) - matching requirements
-        self.tier_limits = {
-            SubscriptionTier.FREE: 10,        # Free: 10 credits/month
-            SubscriptionTier.BASIC: 100,      # Basic: 100 credits/month  
-            SubscriptionTier.PRO: 500,        # Pro: 500 credits/month
-            SubscriptionTier.ENTERPRISE: -1   # Enterprise: Unlimited (-1 means unlimited)
-        }
+        # NOTE: Plan limits are now read from database - no hardcoded values
     
     def calculate_credit_cost(self, operation_type: OperationType, product_count: int = 1) -> int:
         """Calculate credit cost for an operation"""
@@ -86,7 +81,8 @@ class CreditService:
         self, 
         user_id: str, 
         operation_type: OperationType, 
-        product_count: int = 1
+        product_count: int = 1,
+        session: Session = None
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Check if user has sufficient credits and is within limits
@@ -95,100 +91,81 @@ class CreditService:
             Tuple[bool, Dict]: (can_proceed, info_dict)
         """
         try:
-            # Get user credits
-            user_credits = self.db_service.get_user_credits(user_id)
-            if not user_credits:
-                # Create new user with free tier
-                user_credits = self.db_service.create_user_credits(user_id, "free")
+            # Always ensure a subscription exists
+            subscription = self.db_service.get_user_subscription(user_id, session)
+            if not subscription:
+                logger.info(f"No subscription found for user {user_id}, assigning free plan")
+                self.db_service.assign_free_plan_to_user(user_id, session)
+                subscription = self.db_service.get_user_subscription(user_id, session)
             
-            # Get user subscription
-            subscription = self.db_service.get_user_subscription(user_id)
+            # Get plan ID and daily limit from database
+            plan_id = subscription.plan_id if subscription else "free"
+            daily_limit = self.db_service.get_user_daily_limit(user_id, session)
             
-            # Calculate required credits
-            required_credits = self.calculate_credit_cost(operation_type, product_count)
+            # Get today's usage count
+            daily_usage_count = self.db_service.get_daily_usage_count(user_id, session)
             
-            # Check subscription tier limits
-            tier_limit = self.tier_limits.get(user_credits.subscription_tier, 10)
-            
-            # Check if user has enough credits
-            if user_credits.current_credits < required_credits:
-                return False, {
-                    "error": f"Insufficient credits. Required: {required_credits}, Available: {user_credits.current_credits}",
-                    "upgrade_required": True,
-                    "current_credits": user_credits.current_credits,
-                    "required_credits": required_credits,
-                    "operation_type": operation_type.value,
-                    "subscription_tier": user_credits.subscription_tier.value,
-                    "tier_limit": tier_limit
-                }
-            
-            # Check monthly tier limits (for non-enterprise users)
-            if tier_limit > 0:  # Not unlimited
-                if user_credits.credits_used_this_period + required_credits > tier_limit:
-                    return False, {
-                        "error": f"Monthly tier limit exceeded. Used: {user_credits.credits_used_this_period}, Limit: {tier_limit}",
-                        "upgrade_required": True,
-                        "current_credits": user_credits.current_credits,
-                        "required_credits": required_credits,
-                        "credits_used_this_period": user_credits.credits_used_this_period,
-                        "tier_limit": tier_limit,
-                        "subscription_tier": user_credits.subscription_tier.value
-                    }
-            
-            # Check if subscription is active (for paid tiers)
-            if subscription and not subscription.is_active():
-                return False, {
-                    "error": "Subscription expired. Please renew your subscription.",
-                    "upgrade_required": True,
-                    "current_credits": user_credits.current_credits,
-                    "required_credits": required_credits,
-                    "subscription_tier": user_credits.subscription_tier.value
-                }
-            
-            # NEW: Check daily generation limits based on subscription plan
-            daily_usage_count = self.db_service.get_daily_usage_count(user_id)
-            daily_limit = self.db_service.get_user_daily_limit(user_id)
+            # Calculate remaining daily credits
+            remaining_daily_credits = max(0, daily_limit - daily_usage_count)
             
             # Check if user has exceeded their daily limit
             if daily_usage_count >= daily_limit:
                 return False, {
+                    "allowed": False,
+                    "remaining_daily_credits": remaining_daily_credits,
+                    "daily_limit": daily_limit,
+                    "reason": "limit_exceeded",
                     "error": f"Daily generation limit exceeded. Used: {daily_usage_count}, Limit: {daily_limit}",
+                    "upgrade_required": True,
+                    "daily_usage_count": daily_usage_count,
+                    "subscription_tier": plan_id
+                }
+            
+            # Get user credits for additional checks
+            user_credits = self.db_service.get_user_credits(user_id, session)
+            if not user_credits:
+                # Create new user with free tier
+                user_credits = self.db_service.create_user_credits(session, user_id, "free")
+            
+            # Calculate required credits
+            required_credits = self.calculate_credit_cost(operation_type, product_count)
+            
+            # Check if user has enough credits (for backward compatibility)
+            if user_credits.current_credits < required_credits:
+                return False, {
+                    "allowed": False,
+                    "remaining_daily_credits": remaining_daily_credits,
+                    "daily_limit": daily_limit,
+                    "reason": "insufficient_credits",
+                    "error": f"Insufficient credits. Required: {required_credits}, Available: {user_credits.current_credits}",
                     "upgrade_required": True,
                     "current_credits": user_credits.current_credits,
                     "required_credits": required_credits,
-                    "daily_usage_count": daily_usage_count,
-                    "daily_limit": daily_limit,
-                    "subscription_tier": user_credits.subscription_tier.value
-                }
-            
-            # Check rate limits
-            can_proceed_rate, rate_info = self.db_service.check_rate_limits(user_id)
-            if not can_proceed_rate:
-                return False, {
-                    "error": rate_info.get("error", "Rate limit exceeded"),
-                    "upgrade_required": rate_info.get("upgrade_required", False),
-                    "rate_limits": rate_info.get("rate_limits", {}),
-                    "current_credits": user_credits.current_credits,
-                    "required_credits": required_credits
+                    "subscription_tier": plan_id
                 }
             
             # All checks passed
             return True, {
+                "allowed": True,
+                "remaining_daily_credits": remaining_daily_credits,
+                "daily_limit": daily_limit,
+                "reason": "",
                 "current_credits": user_credits.current_credits,
                 "required_credits": required_credits,
                 "remaining_after": user_credits.current_credits - required_credits,
                 "operation_type": operation_type.value,
-                "subscription_tier": user_credits.subscription_tier.value,
-                "tier_limit": tier_limit,
-                "credits_used_this_period": user_credits.credits_used_this_period,
-                "daily_usage_count": daily_usage_count,
-                "daily_limit": daily_limit,
-                "rate_limits": rate_info.get("rate_limits", {})
+                "subscription_tier": plan_id,
+                "daily_usage_count": daily_usage_count
             }
             
         except Exception as e:
             logger.error(f"Error checking credits and limits for user {user_id}: {str(e)}")
+            # Fall back to free plan with limit=2 instead of throwing
             return False, {
+                "allowed": False,
+                "remaining_daily_credits": 0,
+                "daily_limit": 2,
+                "reason": "error",
                 "error": f"Internal error checking credits: {str(e)}",
                 "upgrade_required": False
             }
@@ -199,7 +176,8 @@ class CreditService:
         operation_type: OperationType, 
         product_count: int = 1,
         request_id: str = None,
-        batch_id: str = None
+        batch_id: str = None,
+        session: Session = None
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Deduct credits after successful operation
@@ -211,12 +189,13 @@ class CreditService:
             # Calculate required credits
             required_credits = self.calculate_credit_cost(operation_type, product_count)
             
-            # Deduct credits
-            success, result = self.db_service.use_credits(user_id, required_credits)
+            # Deduct credits atomically
+            success, result = self.db_service.use_credits(user_id, required_credits, session)
             
             if success:
                 # Log usage
                 self.db_service.log_usage(
+                    session=session,
                     user_id=user_id,
                     usage_type=UsageType.AI_GENERATION,
                     credits_used=required_credits,
@@ -227,7 +206,7 @@ class CreditService:
                 )
                 
                 # Get updated user credits
-                user_credits = self.db_service.get_user_credits(user_id)
+                user_credits = self.db_service.get_user_credits(user_id, session)
                 
                 return True, {
                     "credits_deducted": required_credits,
@@ -245,25 +224,47 @@ class CreditService:
                 "error": f"Failed to deduct credits: {str(e)}"
             }
     
-    async def get_user_credit_info(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_credit_info(self, user_id: str, session: Session = None) -> Dict[str, Any]:
         """Get comprehensive user credit information"""
         try:
-            user_credits = self.db_service.get_user_credits(user_id)
+            user_credits = self.db_service.get_user_credits(user_id, session)
             if not user_credits:
-                user_credits = self.db_service.create_user_credits(user_id, "free")
+                user_credits = self.db_service.create_user_credits(session, user_id, "free")
             
-            subscription = self.db_service.get_user_subscription(user_id)
-            tier_limit = self.tier_limits.get(user_credits.subscription_tier, 10)
+            subscription = self.db_service.get_user_subscription(user_id, session)
+            plan_id = subscription.plan_id if subscription else "free"
             
-            # Calculate next refresh date
+            # Get plan limit from database instead of hardcoded values
+            plan_limit = 2  # Default for free plan
+            if subscription and subscription.plan:
+                plan_limit = subscription.plan.credits_per_period
+            
+            # Ensure subscription is active with defensive datetime handling
+            if subscription and not subscription.is_active():
+                logger.warning(f"User {user_id} has inactive subscription, falling back to free plan")
+                plan_limit = 2
+            
+            # Calculate next refresh date with timezone-aware comparison
             next_refresh = None
+            now_utc = datetime.now(timezone.utc)
+            
             if user_credits.period_end:
-                next_refresh = user_credits.period_end
+                # Ensure period_end is timezone-aware
+                if user_credits.period_end.tzinfo is None:
+                    next_refresh = user_credits.period_end.replace(tzinfo=timezone.utc)
+                    logger.warning(f"Fixed naive user_credits period_end for user {user_id} in get_user_credit_info")
+                else:
+                    next_refresh = user_credits.period_end
             elif subscription and subscription.current_period_end:
-                next_refresh = subscription.current_period_end
+                # Ensure current_period_end is timezone-aware
+                if subscription.current_period_end.tzinfo is None:
+                    next_refresh = subscription.current_period_end.replace(tzinfo=timezone.utc)
+                    logger.warning(f"Fixed naive subscription current_period_end for user {user_id} in get_user_credit_info")
+                else:
+                    next_refresh = subscription.current_period_end
             else:
                 # Default to 30 days from now for free tier
-                next_refresh = datetime.now(timezone.utc) + timedelta(days=30)
+                next_refresh = now_utc + timedelta(days=30)
             
             return {
                 "user_id": user_id,
@@ -271,10 +272,10 @@ class CreditService:
                 "total_credits_purchased": user_credits.total_credits_purchased,
                 "total_credits_used": user_credits.total_credits_used,
                 "credits_used_this_period": user_credits.credits_used_this_period,
-                "subscription_tier": user_credits.subscription_tier.value,
-                "tier_limit": tier_limit,
-                "is_unlimited": tier_limit == -1,
-                "credits_remaining_this_period": max(0, tier_limit - user_credits.credits_used_this_period) if tier_limit > 0 else -1,
+                "subscription_tier": plan_id,
+                "tier_limit": plan_limit,
+                "is_unlimited": plan_limit == -1,
+                "credits_remaining_this_period": max(0, plan_limit - user_credits.credits_used_this_period) if plan_limit > 0 else -1,
                 "next_credit_refresh": next_refresh.isoformat() if next_refresh else None,
                 "subscription_active": subscription.is_active() if subscription else False,
                 "subscription_expires": subscription.current_period_end.isoformat() if subscription and subscription.current_period_end else None,
@@ -293,38 +294,51 @@ class CreditService:
                 "error": f"Failed to get credit info: {str(e)}"
             }
     
-    async def refresh_credits_for_subscription(self, user_id: str) -> bool:
+    async def refresh_credits_for_subscription(self, user_id: str, session: Session = None) -> bool:
         """Refresh credits for monthly subscription"""
         try:
-            user_credits = self.db_service.get_user_credits(user_id)
+            user_credits = self.db_service.get_user_credits(user_id, session)
             if not user_credits:
                 return False
             
-            subscription = self.db_service.get_user_subscription(user_id)
+            subscription = self.db_service.get_user_subscription(user_id, session)
             if not subscription or not subscription.is_active():
                 return False
             
             # Get plan details
-            plan = self.db_service.get_subscription_plan(subscription.plan_id)
+            plan = self.db_service.get_subscription_plan(subscription.plan_id, session)
             if not plan:
                 return False
             
-            # Check if it's time to refresh (new billing period)
-            now = datetime.now(timezone.utc)
-            if user_credits.period_end and now < user_credits.period_end:
+            # Check if it's time to refresh (new billing period) with timezone-aware comparison
+            now_utc = datetime.now(timezone.utc)
+            
+            # Ensure period_end is timezone-aware
+            period_end = user_credits.period_end
+            if period_end and period_end.tzinfo is None:
+                period_end = period_end.replace(tzinfo=timezone.utc)
+            
+            if period_end and now_utc < period_end:
                 return False  # Not time to refresh yet
             
             # Reset period usage and add new credits
             user_credits.credits_used_this_period = 0
-            user_credits.period_start = now
-            user_credits.period_end = subscription.current_period_end or (now + timedelta(days=30))
+            user_credits.period_start = now_utc
+            
+            # Ensure subscription period end is timezone-aware
+            sub_period_end = subscription.current_period_end
+            if sub_period_end and sub_period_end.tzinfo is None:
+                sub_period_end = sub_period_end.replace(tzinfo=timezone.utc)
+                logger.warning(f"Fixed naive subscription period_end for user {user_id}")
+            
+            user_credits.period_end = sub_period_end or (now_utc + timedelta(days=30))
             
             # Add monthly credits
             monthly_credits = plan.credits_per_period
             user_credits.add_credits(monthly_credits, "subscription_refresh")
             
             # Update in database
-            success = self.db_service.update_user_credits(user_credits)
+            success = self.db_service.update_user_credits(session, user_credits)
             
             if success:
                 logger.info(f"Refreshed {monthly_credits} credits for user {user_id}")
@@ -335,17 +349,24 @@ class CreditService:
             logger.error(f"Error refreshing credits for user {user_id}: {str(e)}")
             return False
     
-    async def check_and_refresh_credits(self, user_id: str) -> bool:
+    async def check_and_refresh_credits(self, user_id: str, session: Session = None) -> bool:
         """Check if credits need refreshing and refresh if necessary"""
         try:
-            user_credits = self.db_service.get_user_credits(user_id)
+            user_credits = self.db_service.get_user_credits(user_id, session)
             if not user_credits:
                 return False
             
-            # Check if we need to refresh credits
-            now = datetime.now(timezone.utc)
-            if user_credits.period_end and now >= user_credits.period_end:
-                return await self.refresh_credits_for_subscription(user_id)
+            # Check if we need to refresh credits with timezone-aware comparison
+            now_utc = datetime.now(timezone.utc)
+            
+            # Ensure period_end is timezone-aware
+            period_end = user_credits.period_end
+            if period_end and period_end.tzinfo is None:
+                period_end = period_end.replace(tzinfo=timezone.utc)
+                logger.warning(f"Fixed naive user_credits period_end for user {user_id} in check_and_refresh")
+            
+            if period_end and now_utc >= period_end:
+                return await self.refresh_credits_for_subscription(user_id, session)
             
             return True  # No refresh needed
             

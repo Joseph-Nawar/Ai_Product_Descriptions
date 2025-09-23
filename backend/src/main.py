@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from sqlalchemy.orm import Session
+from src.database.deps import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import pandas as pd
@@ -367,7 +369,8 @@ async def generate_description(
     tone: str = Form("professional"),
     sku: str = Form(""),
     languageCode: str = Form("en"),
-    user = Depends(get_current_user)
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)  # ✅ Add missing DB session injection
 ):
     """Generate a single product description"""
     if model is None or credit_service is None:
@@ -376,12 +379,12 @@ async def generate_description(
     user_id = user.get("uid")
     
     # Check and refresh credits if needed
-    await credit_service.check_and_refresh_credits(user_id)
+    await credit_service.check_and_refresh_credits(user_id, session=db)  # ✅ Add missing session parameter
     
     # Check user credits before generation
     operation_type = OperationType.SINGLE_DESCRIPTION
     can_proceed, credit_info = await credit_service.check_credits_and_limits(
-        user_id, operation_type, product_count=1
+        user_id, operation_type, product_count=1, session=db  # ✅ Add missing session parameter
     )
     
     if not can_proceed:
@@ -477,7 +480,7 @@ async def generate_description(
         
         # Deduct credits after successful generation
         deduct_success, deduct_result = await credit_service.deduct_credits(
-            user_id, operation_type, product_count=1, request_id=row["id"]
+            user_id, operation_type, product_count=1, request_id=row["id"], session=db
         )
         if not deduct_success:
             logging.warning(f"Failed to deduct credits for user {user_id}: {deduct_result.get('error')}")
@@ -509,7 +512,7 @@ async def generate_description(
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
 @app.post("/api/generate-batch")
-async def generate_batch_json(request: Dict[str, Any], user = Depends(get_current_user)):
+async def generate_batch_json(request: Dict[str, Any], user = Depends(get_current_user), db: Session = Depends(get_db)):  # ✅ Add missing DB session injection
     """Generate descriptions for multiple products from batch request"""
     logging.info(f"🚀 Generate batch endpoint called - user: {user.get('email', 'unknown')}")
     if model is None or credit_service is None:
@@ -518,7 +521,7 @@ async def generate_batch_json(request: Dict[str, Any], user = Depends(get_curren
     user_id = user.get("uid")
     
     # Check and refresh credits if needed
-    await credit_service.check_and_refresh_credits(user_id)
+    await credit_service.check_and_refresh_credits(user_id, session=db)  # ✅ Add missing session parameter
     
     # Handle both old format (array of products) and new format (batch request)
     if isinstance(request, list):
@@ -544,7 +547,7 @@ async def generate_batch_json(request: Dict[str, Any], user = Depends(get_curren
     operation_type = credit_service.determine_operation_type(product_count, is_regeneration=False)
     
     can_proceed, credit_info = await credit_service.check_credits_and_limits(
-        user_id, operation_type, product_count
+        user_id, operation_type, product_count, session=db
     )
     
     if not can_proceed:
@@ -814,7 +817,7 @@ Return JSON:
         # Deduct credits after successful batch generation
         batch_id = f"batch_{timestamp()}"
         deduct_success, deduct_result = await credit_service.deduct_credits(
-            user_id, operation_type, product_count, batch_id=batch_id
+            user_id, operation_type, product_count, batch_id=batch_id, session=db
         )
         if not deduct_success:
             logging.warning(f"Failed to deduct credits for user {user_id}: {deduct_result.get('error')}")
@@ -839,7 +842,7 @@ Return JSON:
         raise HTTPException(status_code=500, detail=f"JSON batch processing failed: {str(e)}")
 
 @app.post("/api/generate-batch-csv")
-async def generate_batch(file: UploadFile = File(...), audience: str = Form(...), languageCode: str = Form("en"), user = Depends(get_current_user)):
+async def generate_batch(file: UploadFile = File(...), audience: str = Form(...), languageCode: str = Form("en"), user = Depends(get_current_user), db: Session = Depends(get_db)):  # ✅ Add missing DB session injection
     """Generate descriptions for multiple products from CSV with automatic column mapping"""
     if model is None or credit_service is None:
         raise HTTPException(status_code=500, detail="AI model or credit service not initialized")
@@ -847,7 +850,7 @@ async def generate_batch(file: UploadFile = File(...), audience: str = Form(...)
     user_id = user.get("uid")
     
     # Check and refresh credits if needed
-    await credit_service.check_and_refresh_credits(user_id)
+    await credit_service.check_and_refresh_credits(user_id, session=db)  # ✅ Add missing session parameter
     
     # Validate language code
     SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'de', 'ja', 'zh']
@@ -867,7 +870,7 @@ async def generate_batch(file: UploadFile = File(...), audience: str = Form(...)
         operation_type = OperationType.CSV_UPLOAD
         
         can_proceed, credit_info = await credit_service.check_credits_and_limits(
-            user_id, operation_type, product_count
+            user_id, operation_type, product_count, session=db
         )
         
         if not can_proceed:
@@ -1200,6 +1203,11 @@ async def regenerate_description(item: Dict[str, Any], user = Depends(get_curren
         logging.error(f"Safety filter status: {safety_filter is not None}")
         logging.error(f"Cost tracker status: {cost_tracker is not None}")
         raise HTTPException(status_code=500, detail=f"Regeneration failed: {str(e)}")
+
+@app.get("/api/health")
+async def health():
+    """Health check endpoint to verify the app is running"""
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn

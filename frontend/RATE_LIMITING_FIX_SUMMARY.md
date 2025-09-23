@@ -79,3 +79,4 @@ The pricing page now:
 5. Allows manual refresh if needed
 
 The rate limiting issue should now be completely resolved, ensuring the pricing page is always accessible for user acquisition and conversion.
+

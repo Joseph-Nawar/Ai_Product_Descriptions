@@ -234,7 +234,7 @@ export function CreditBalance({
           </Button>
           
           <Button
-            onClick={() => window.location.href = '/billing'}
+            onClick={() => window.location.href = '/pricing'}
             variant="secondary"
             className="w-full"
           >

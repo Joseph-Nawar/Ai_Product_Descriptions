@@ -53,7 +53,7 @@ export default function Pricing() {
                 </p>
               </div>
               <Button
-                onClick={() => navigate('/billing')}
+                onClick={() => navigate('/pricing')}
                 variant="secondary"
               >
                 Manage Subscription

@@ -29,20 +29,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_default_plans():
-    """Create default subscription plans"""
+    """Create default subscription plans - SINGLE SOURCE OF TRUTH"""
     logger.info("Creating default subscription plans...")
     
+    # STANDARDIZED PLAN DEFINITIONS - This is the ONLY place plans should be defined
     default_plans = [
         {
             "id": "free",
             "name": "Free Tier",
-            "description": "Basic AI product description generation",
+            "description": "Basic AI product description generation - 2 generations per day",
             "price": 0.00,
             "currency": "USD",
             "billing_interval": "month",
             "credits_per_period": 2,  # 2 generations per day
             "max_products_per_batch": 5,
-            "max_api_calls_per_day": 2,
+            "max_api_calls_per_day": 2,  # Daily limit
             "requests_per_minute": 5,
             "requests_per_hour": 50,
             "features": {
@@ -60,13 +61,13 @@ def create_default_plans():
         {
             "id": "pro",
             "name": "Pro Plan",
-            "description": "Professional AI generation with enhanced features",
+            "description": "Professional AI generation - 5 generations per day",
             "price": 4.99,
             "currency": "USD",
             "billing_interval": "month",
             "credits_per_period": 5,  # 5 generations per day
             "max_products_per_batch": 200,
-            "max_api_calls_per_day": 5,
+            "max_api_calls_per_day": 5,  # Daily limit
             "requests_per_minute": 50,
             "requests_per_hour": 2000,
             "features": {
@@ -82,17 +83,17 @@ def create_default_plans():
             "sort_order": 2
         },
         {
-            "id": "pro-yearly",
-            "name": "Yearly Plan",
-            "description": "Unlimited AI generation with enhanced features - Save 50%",
-            "price": 99.99,  # Yearly price with 50% discount
+            "id": "enterprise",
+            "name": "Enterprise Plan",
+            "description": "Unlimited AI generation - 15 generations per day",
+            "price": 14.99,
             "currency": "USD",
-            "billing_interval": "year",
-            "credits_per_period": 20,  # 20 generations per day
-            "max_products_per_batch": 200,
-            "max_api_calls_per_day": 5,
-            "requests_per_minute": 50,
-            "requests_per_hour": 2000,
+            "billing_interval": "month",
+            "credits_per_period": 15,  # 15 generations per day
+            "max_products_per_batch": 1000,
+            "max_api_calls_per_day": 15,  # Daily limit
+            "requests_per_minute": 100,
+            "requests_per_hour": 10000,
             "features": {
                 "ai_generation": True,
                 "basic_templates": True,
@@ -100,21 +101,23 @@ def create_default_plans():
                 "email_support": True,
                 "priority_support": True,
                 "custom_templates": True,
-                "api_access": True
+                "api_access": True,
+                "white_label": True,
+                "custom_integrations": True
             },
             "is_active": True,
             "sort_order": 3
         },
         {
-            "id": "enterprise",
-            "name": "Enterprise Plan",
-            "description": "Unlimited AI generation with premium features",
-            "price": 14.99,
+            "id": "yearly",
+            "name": "Yearly Plan",
+            "description": "Unlimited AI generation - 15 generations per day - Save 50%",
+            "price": 99.99,  # Yearly price with 50% discount
             "currency": "USD",
-            "billing_interval": "month",
-            "credits_per_period": 15,  # 15 generations per day
+            "billing_interval": "year",
+            "credits_per_period": 15,  # 15 generations per day (same as enterprise)
             "max_products_per_batch": 1000,
-            "max_api_calls_per_day": 15,
+            "max_api_calls_per_day": 15,  # Daily limit
             "requests_per_minute": 100,
             "requests_per_hour": 10000,
             "features": {

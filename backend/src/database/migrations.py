@@ -5,7 +5,7 @@ Database migration utilities
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -88,7 +88,7 @@ class MigrationManager:
     
     def create_migration_file(self, name: str) -> str:
         """Create a new migration file"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         version = f"{timestamp}_{name}"
         filename = f"{version}.sql"
         filepath = self.migration_dir / filename
@@ -96,7 +96,7 @@ class MigrationManager:
         # Create migration template
         template = f"""-- Migration: {name}
 -- Version: {version}
--- Created: {datetime.now().isoformat()}
+-- Created: {datetime.now(timezone.utc).isoformat()}
 
 -- Add your migration SQL here
 -- Example:
@@ -297,12 +297,12 @@ CREATE INDEX IF NOT EXISTS idx_subscription_plans_sort ON subscription_plans(sor
 """,
 
     "002_default_plans": """
--- Insert default subscription plans
+-- Insert default subscription plans (STANDARDIZED - matches init_db.py)
 INSERT INTO subscription_plans (id, name, description, price, currency, billing_interval, credits_per_period, max_products_per_batch, max_api_calls_per_day, requests_per_minute, requests_per_hour, features, is_active, sort_order) VALUES
-('free', 'Free Tier', 'Basic AI product description generation', 0.00, 'USD', 'month', 10, 5, 50, 5, 50, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": false, "priority_support": false, "custom_templates": false, "api_access": false}', true, 1),
-('basic', 'Basic Plan', 'Enhanced AI generation with more credits', 9.99, 'USD', 'month', 100, 50, 500, 20, 500, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": true, "priority_support": false, "custom_templates": false, "api_access": false}', true, 2),
-('pro', 'Pro Plan', 'Professional AI generation with unlimited credits', 29.99, 'USD', 'month', 1000, 200, 2000, 50, 2000, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": true, "priority_support": true, "custom_templates": true, "api_access": true}', true, 3),
-('enterprise', 'Enterprise Plan', 'Unlimited AI generation with premium features', 99.99, 'USD', 'month', 10000, 1000, 10000, 100, 10000, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": true, "priority_support": true, "custom_templates": true, "api_access": true, "white_label": true, "custom_integrations": true}', true, 4)
+('free', 'Free Tier', 'Basic AI product description generation - 2 generations per day', 0.00, 'USD', 'month', 2, 5, 2, 5, 50, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": false, "priority_support": false, "custom_templates": false, "api_access": false}', true, 1),
+('pro', 'Pro Plan', 'Professional AI generation - 5 generations per day', 4.99, 'USD', 'month', 5, 200, 5, 50, 2000, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": true, "priority_support": true, "custom_templates": true, "api_access": true}', true, 2),
+('enterprise', 'Enterprise Plan', 'Unlimited AI generation - 15 generations per day', 14.99, 'USD', 'month', 15, 1000, 15, 100, 10000, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": true, "priority_support": true, "custom_templates": true, "api_access": true, "white_label": true, "custom_integrations": true}', true, 3),
+('yearly', 'Yearly Plan', 'Unlimited AI generation - 15 generations per day - Save 50%', 99.99, 'USD', 'year', 15, 1000, 15, 100, 10000, '{"ai_generation": true, "basic_templates": true, "csv_upload": true, "email_support": true, "priority_support": true, "custom_templates": true, "api_access": true, "white_label": true, "custom_integrations": true}', true, 4)
 ON CONFLICT (id) DO NOTHING;
 """,
 

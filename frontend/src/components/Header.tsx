@@ -83,18 +83,6 @@ export function Header({ className = "" }: HeaderProps) {
 
               {/* User Actions */}
               <div className="flex items-center space-x-3">
-                {/* Upgrade Button for non-authenticated users */}
-                {!user && (
-                  <Link to="/pricing">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300"
-                    >
-                      Upgrade
-                    </Button>
-                  </Link>
-                )}
 
                 {/* Mobile Credit Display and Upgrade Button */}
                 {user && (
@@ -118,18 +106,6 @@ export function Header({ className = "" }: HeaderProps) {
 
                 {/* Profile Dropdown */}
                 <HeaderProfileDropdown />
-
-                {/* Upgrade Button - Show when credits are low */}
-                {user && payment.shouldShowUpgradePrompt() && (
-                  <Button
-                    onClick={handleUpgrade}
-                    variant="primary"
-                    size="sm"
-                    className="hidden sm:inline-flex"
-                  >
-                    {t('buttons.upgrade')}
-                  </Button>
-                )}
               </div>
             </div>
           </div>

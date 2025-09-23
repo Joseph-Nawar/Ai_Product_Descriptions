@@ -13,7 +13,6 @@ const Home = React.lazy(() => import("./pages/Home"));
 const Results = React.lazy(() => import("./pages/Results"));
 const Login = React.lazy(() => import("./pages/Login"));
 const Pricing = React.lazy(() => import("./pages/Pricing"));
-const Billing = React.lazy(() => import("./pages/Billing"));
 const Profile = React.lazy(() => import("./pages/Profile"));
 
 // Loading fallback component
@@ -44,7 +43,6 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
                 <Route path="/pricing" element={<RequireAuth><Pricing /></RequireAuth>} />
-                <Route path="/billing" element={<RequireAuth><Billing /></RequireAuth>} />
               </Routes>
             </Suspense>
           </main>

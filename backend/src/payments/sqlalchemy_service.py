@@ -28,6 +28,20 @@ class SQLAlchemyPaymentService:
     def __init__(self):
         self.logger = logger
     
+    def _ensure_session(self, session: Session = None) -> Tuple[Session, bool]:
+        """
+        Private helper to ensure a valid session exists.
+        Returns (session, created) where created=True if it created a new session.
+        """
+        if session is not None and hasattr(session, 'query'):
+            return session, False
+        
+        # Create a new session if none provided
+        from src.database.connection import get_session_factory
+        SessionLocal = get_session_factory()
+        new_session = SessionLocal()
+        return new_session, True
+    
     def get_subscription_plans(self, session: Session) -> List[Dict[str, Any]]:
         """Get all active subscription plans"""
         plans = session.query(SubscriptionPlan).filter(
@@ -43,34 +57,78 @@ class SQLAlchemyPaymentService:
             session.expunge(plan)
         return plan
     
-    def get_user_credits(self, session: Session, user_id: str) -> Optional[UserCredits]:
+    def get_user_credits(self, user_id: str, session: Session = None) -> Optional[UserCredits]:
         """Get user credits"""
-        user_credits = session.query(UserCredits).options(joinedload(UserCredits.subscription)).filter_by(user_id=user_id).first()
-        if user_credits:
-            session.expunge(user_credits)
-        return user_credits
+        session, created = self._ensure_session(session)
+        
+        try:
+            user_credits = session.query(UserCredits).options(joinedload(UserCredits.subscription)).filter_by(user_id=user_id).first()
+            if user_credits:
+                session.expunge(user_credits)
+            return user_credits
+        finally:
+            if created:
+                session.close()
     
     def create_user_credits(self, session: Session, user_id: str, plan_id: str = "free") -> UserCredits:
-        """Create new user credits record"""
+        """Create new user credits record with correct initial credits"""
+        # Ensure we have a valid session
+        if not hasattr(session, 'query'):
+            raise ValueError("Invalid session object provided to create_user_credits")
+            
         # Get the plan to determine initial credits within the session
         plan = session.query(SubscriptionPlan).filter_by(id=plan_id).first()
-        initial_credits = 10  # Default fallback
+        initial_credits = 2  # Default fallback for free plan
         if plan:
             initial_credits = plan.credits_per_period
         
+        now = datetime.now(timezone.utc)
         user_credits = UserCredits(
             user_id=user_id,
             current_credits=initial_credits,
             total_credits_purchased=initial_credits if plan_id != "free" else 0,
-            period_start=datetime.now(timezone.utc),
-            period_end=datetime.now(timezone.utc) + timedelta(days=30)
+            period_start=now,
+            period_end=now + timedelta(days=30)
         )
         
         session.add(user_credits)
         session.flush()  # Get the ID without committing
         
-        self.logger.info(f"Created user credits for {user_id}: {initial_credits} credits")
+        self.logger.info(f"Created user credits for {user_id}: {initial_credits} credits (plan: {plan_id})")
         return user_credits
+    
+    def assign_free_plan_to_user(self, user_id: str, session: Session = None) -> bool:
+        """Assign free plan to user if they don't have a subscription (idempotent)"""
+        session, created = self._ensure_session(session)
+        
+        try:
+            # Check if user already has a subscription
+            existing_subscription = self.get_user_subscription(user_id, session)
+            if existing_subscription:
+                self.logger.info(f"User {user_id} already has subscription: {existing_subscription.plan_id}")
+                return True
+            
+            # Create free subscription
+            subscription = self.create_user_subscription(session, user_id, "free")
+            
+            # Ensure user has credits record
+            user_credits = self.get_user_credits(user_id, session)
+            if not user_credits:
+                user_credits = self.create_user_credits(session, user_id, "free")
+            
+            # Link user credits to subscription
+            user_credits.subscription_id = subscription.id
+            session.flush()
+            
+            self.logger.info(f"Successfully assigned free plan to user {user_id}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to assign free plan to user {user_id}: {str(e)}")
+            return False
+        finally:
+            if created:
+                session.close()
     
     def update_user_credits(self, session: Session, user_credits: UserCredits) -> bool:
         """Update user credits"""
@@ -96,34 +154,55 @@ class SQLAlchemyPaymentService:
         self.logger.info(f"Added {amount} credits to user {user_id} from {source}")
         return True
     
-    def use_credits(self, session: Session, user_id: str, amount: int) -> Tuple[bool, Dict[str, Any]]:
-        """Use credits from user account"""
-        user_credits = session.query(UserCredits).options(joinedload(UserCredits.subscription)).filter_by(user_id=user_id).first()
+    def use_credits(self, user_id: str, amount: int, session: Session = None) -> Tuple[bool, Dict[str, Any]]:
+        """Use credits from user account - ATOMIC OPERATION"""
+        session, created = self._ensure_session(session)
         
-        if not user_credits:
-            return False, {"error": "User not found"}
-        
-        if user_credits.use_credits(amount):
+        try:
+            # Use SELECT FOR UPDATE to prevent race conditions
+            user_credits = session.query(UserCredits).options(joinedload(UserCredits.subscription)).filter_by(user_id=user_id).with_for_update().first()
+            
+            if not user_credits:
+                return False, {"error": "User not found"}
+            
+            # Check if user has enough credits
+            if user_credits.current_credits < amount:
+                return False, {
+                    "error": "Insufficient credits",
+                    "current_credits": user_credits.current_credits,
+                    "required_credits": amount
+                }
+            
+            # Atomically deduct credits
+            user_credits.current_credits -= amount
+            user_credits.total_credits_used += amount
+            user_credits.credits_used_this_period += amount
+            user_credits.updated_at = datetime.now(timezone.utc)
+            
             session.flush()  # Don't commit here, let the endpoint handle it
+            
             return True, {
                 "credits_deducted": amount,
                 "remaining_credits": user_credits.current_credits
             }
-        else:
-            return False, {
-                "error": "Insufficient credits",
-                "current_credits": user_credits.current_credits,
-                "required_credits": amount
-            }
+        finally:
+            if created:
+                session.close()
     
-    def get_user_subscription(self, session: Session, user_id: str) -> Optional[UserSubscription]:
+    def get_user_subscription(self, user_id: str, session: Session = None) -> Optional[UserSubscription]:
         """Get user's current subscription"""
-        return session.query(UserSubscription).filter(
-            and_(
-                UserSubscription.user_id == user_id,
-                UserSubscription.status == SubscriptionStatus.ACTIVE
-            )
-        ).first()
+        session, created = self._ensure_session(session)
+        
+        try:
+            return session.query(UserSubscription).filter(
+                and_(
+                    UserSubscription.user_id == user_id,
+                    UserSubscription.status == SubscriptionStatus.ACTIVE
+                )
+            ).first()
+        finally:
+            if created:
+                session.close()
     
     def create_user_subscription(
         self, 
@@ -159,17 +238,7 @@ class SQLAlchemyPaymentService:
         
         self.logger.info(f"Created subscription for user {user_id}: {plan_id}")
         
-        # Return subscription data as dictionary to avoid session issues
-        return {
-            "id": subscription.id,
-            "user_id": subscription.user_id,
-            "plan_id": subscription.plan_id,
-            "status": subscription.status,
-            "current_period_start": subscription.current_period_start,
-            "current_period_end": subscription.current_period_end,
-            "is_active": subscription.is_active(),
-            "is_trial": subscription.is_trial()
-        }
+        return subscription
     
     def update_subscription_status(
         self, 
@@ -222,7 +291,7 @@ class SQLAlchemyPaymentService:
         """Log usage for billing and analytics"""
         try:
             usage_log = UsageLog(
-                id=f"usage_{user_id}_{int(datetime.now().timestamp())}",
+                id=f"usage_{user_id}_{int(datetime.now(timezone.utc).timestamp())}",
                 user_id=user_id,
                 usage_type=usage_type,
                 credits_used=credits_used,
@@ -281,40 +350,53 @@ class SQLAlchemyPaymentService:
             "daily_average_credits": total_credits_used / days if days > 0 else 0
         }
     
-    def get_daily_usage_count(self, session: Session, user_id: str) -> int:
+    def get_daily_usage_count(self, user_id: str, session: Session = None) -> int:
         """Get the number of generations performed by user today"""
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = today_start + timedelta(days=1)
+        session, created = self._ensure_session(session)
         
-        # Count usage logs for today
-        usage_count = session.query(UsageLog).filter(
-            and_(
-                UsageLog.user_id == user_id,
-                UsageLog.created_at >= today_start,
-                UsageLog.created_at < today_end,
-                UsageLog.usage_type == UsageType.AI_GENERATION
-            )
-        ).count()
-        
-        return usage_count
+        try:
+            now = datetime.now(timezone.utc)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_end = today_start + timedelta(days=1)
+            
+            # Count usage logs for today
+            usage_count = session.query(UsageLog).filter(
+                and_(
+                    UsageLog.user_id == user_id,
+                    UsageLog.created_at >= today_start,
+                    UsageLog.created_at < today_end,
+                    UsageLog.usage_type == UsageType.AI_GENERATION
+                )
+            ).count()
+            
+            return usage_count
+        finally:
+            if created:
+                session.close()
     
-    def get_user_daily_limit(self, session: Session, user_id: str) -> int:
+    def get_user_daily_limit(self, user_id: str, session: Session = None) -> int:
         """Get the daily generation limit for a user based on their subscription plan"""
-        # Get user subscription
-        subscription = self.get_user_subscription(session, user_id)
+        session, created = self._ensure_session(session)
         
-        if subscription and subscription.is_active():
-            # Get plan details
-            plan = subscription.plan
-            return plan.max_api_calls_per_day
-        else:
-            # Free tier - get default free plan
-            free_plan = session.query(SubscriptionPlan).filter_by(id="free").first()
-            if free_plan:
-                return free_plan.max_api_calls_per_day
+        try:
+            # Get user subscription
+            subscription = self.get_user_subscription(user_id, session)
+            
+            if subscription and subscription.is_active():
+                # Get plan details
+                plan = subscription.plan
+                return plan.max_api_calls_per_day
             else:
-                # Fallback to default free tier limit
-                return 2
+                # Free tier - get default free plan
+                free_plan = session.query(SubscriptionPlan).filter_by(id="free").first()
+                if free_plan:
+                    return free_plan.max_api_calls_per_day
+                else:
+                    # Fallback to default free tier limit
+                    return 2
+        finally:
+            if created:
+                session.close()
     
     def check_rate_limits(self, session: Session, user_id: str) -> Tuple[bool, Dict[str, Any]]:
         """Check if user is within rate limits"""

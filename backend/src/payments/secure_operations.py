@@ -834,7 +834,7 @@ class SecurePaymentOperations:
         """Get user credits safely"""
         try:
             if db_session:
-                return self.db_service.get_user_credits(db_session, user_id)
+                return self.db_service.get_user_credits(user_id, db_session)
             else:
                 return self.db_service.get_user_credits(user_id)
         except Exception as e:

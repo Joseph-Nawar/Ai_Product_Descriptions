@@ -35,14 +35,14 @@ secure_operations = SecurePaymentOperations(lemon_squeezy.db_service, security_s
 
 class CheckoutRequest(BaseModel):
     """Request model for creating checkout session"""
-    plan_id: str
+    variant_id: str
     success_url: str
     cancel_url: str
 
     class Config:
         schema_extra = {
             "example": {
-                "plan_id": "basic",
+                "variant_id": "1009476",
                 "success_url": "https://yourapp.com/payment/success",
                 "cancel_url": "https://yourapp.com/payment/cancel"
             }
@@ -122,18 +122,22 @@ async def get_subscription_plans(request: Request, db: Session = Depends(get_db)
     
     try:
         import os
-        monthly_id = os.getenv("LEMON_SQUEEZY_MONTHLY_VARIANT_ID")
-        yearly_id = os.getenv("LEMON_SQUEEZY_YEARLY_VARIANT_ID")
+        pro_id = os.getenv("LEMON_SQUEEZY_VARIANT_ID_PRO")
+        enterprise_id = os.getenv("LEMON_SQUEEZY_VARIANT_ID_ENTERPRISE")
+        yearly_id = os.getenv("LEMON_SQUEEZY_VARIANT_ID_YEARLY")
         store_id = os.getenv("LEMON_SQUEEZY_STORE_ID")
         # Return complete plan data with all required fields
         plans = await lemon_squeezy.get_subscription_plans(db_session=db)
         
         # Override variant IDs from environment if available
         for plan in plans:
-            if plan["id"] in ("basic", "monthly") and monthly_id:
-                plan["lemon_squeezy_variant_id"] = monthly_id
-            elif plan["id"] in ("pro", "yearly") and yearly_id:
+            if plan["id"] == "pro" and pro_id:
+                plan["lemon_squeezy_variant_id"] = pro_id
+            elif plan["id"] == "enterprise" and enterprise_id:
+                plan["lemon_squeezy_variant_id"] = enterprise_id
+            elif plan["id"] == "pro-yearly" and yearly_id:
                 plan["lemon_squeezy_variant_id"] = yearly_id
+            # Free plan doesn't need a variant ID (it's not purchasable)
         
         security_service.log_audit_event(
             event_type=AuditEventType.SUBSCRIPTION_CREATED,
@@ -174,170 +178,71 @@ async def create_checkout_session(
     db: Session = Depends(get_db)
 ):
     """Create a checkout session for subscription purchase with comprehensive security"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_id = claims.get("uid")
     
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found in token"
-        )
-    
-    # Check rate limits
-    allowed, rate_info = rate_limiting_service.check_rate_limit(
-        endpoint="checkout",
-        user_id=user_id,
-        ip_address=client_info["ip_address"]
-    )
-    
-    if not allowed:
-        security_service.log_audit_event(
-            event_type=AuditEventType.RATE_LIMIT_EXCEEDED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data=rate_info,
-            security_level=SecurityLevel.MEDIUM,
-            success=False,
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please try again later.",
-            headers={"X-RateLimit-Info": str(rate_info)}
-        )
+    print("🎯 STEP 1: CREATE_CHECKOUT ENDPOINT CALLED")
+    print(f"Request data: {request_data}")
+    print(f"Variant ID: {request_data.variant_id}")
+    print(f"Success URL: {request_data.success_url}")
+    print(f"Cancel URL: {request_data.cancel_url}")
     
     try:
-        # Validate payment data
-        payment_data = {
-            "plan_id": request_data.plan_id,
-            "success_url": request_data.success_url,
-            "cancel_url": request_data.cancel_url,
-            "user_id": user_id,
-            "amount": 0,  # Will be determined by plan
-            "currency": "USD"
-        }
+        print("🎯 STEP 2: GETTING CLIENT INFO")
+        client_info = get_client_info(request)
+        print(f"Client info: {client_info}")
         
-        is_valid, validation_errors = security_service.validate_payment_data(payment_data)
-        if not is_valid:
-            security_service.log_audit_event(
-                event_type=AuditEventType.PAYMENT_FAILED,
-                user_id=user_id,
-                ip_address=client_info["ip_address"],
-                user_agent=client_info["user_agent"],
-                event_data={"validation_errors": validation_errors},
-                security_level=SecurityLevel.MEDIUM,
-                success=False,
-                error_message="; ".join(validation_errors),
-                correlation_id=client_info["correlation_id"]
+        print("🎯 STEP 3: EXTRACTING AUTH DATA")
+        claims = auth["claims"]
+        user_row = auth["user"]
+        user_id = claims.get("uid")
+        print(f"User ID: {user_id}")
+        print(f"User email: {user_row.email if user_row else 'None'}")
+        
+        print("🎯 STEP 4: VALIDATING USER")
+        if not user_id:
+            print("❌ STEP 4 FAILED: No user ID found")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID not found in token"
             )
+        print("✅ STEP 4 SUCCESS: User validated")
+        
+        print("🎯 STEP 5: VALIDATING VARIANT ID")
+        if not request_data.variant_id:
+            print("❌ STEP 5 FAILED: No variant ID provided")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Payment data validation failed: {'; '.join(validation_errors)}"
+                detail="Variant ID is required"
             )
+        print("✅ STEP 5 SUCCESS: Variant ID validated")
         
-        # Fraud detection
-        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
-        user_data = {
-            "user_id": user_id,
-            "email": claims.get("email", ""),
-            "account_age_days": (user_credits.created_at - user_credits.created_at).days if user_credits else 0,
-            "recent_payment_count": 0,  # This should be fetched from payment history
-            "recent_failed_payments": 0,  # This should be fetched from payment history
-            "country": ""  # This should be determined from user profile
-        }
-        
-        fraud_result = security_service.detect_fraud(payment_data, user_data)
-        if fraud_result.is_fraudulent:
-            security_service.log_audit_event(
-                event_type=AuditEventType.FRAUD_DETECTED,
+        print("🎯 STEP 6: CALLING LEMON_SQUEEZY SERVICE")
+        try:
+            result = await lemon_squeezy.create_checkout_session(
                 user_id=user_id,
-                ip_address=client_info["ip_address"],
-                user_agent=client_info["user_agent"],
-                event_data={
-                    "fraud_score": fraud_result.confidence_score,
-                    "risk_factors": fraud_result.risk_factors,
-                    "recommended_action": fraud_result.recommended_action
-                },
-                security_level=SecurityLevel.CRITICAL,
-                success=False,
-                error_message="Fraudulent activity detected",
-                correlation_id=client_info["correlation_id"]
+                user_email=user_row.email,
+                variant_id=request_data.variant_id,
+                success_url=request_data.success_url,
+                cancel_url=request_data.cancel_url
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Payment request rejected due to security concerns"
-            )
-        
-        result = await lemon_squeezy.create_checkout_session(
-            user_id=user_id,
-            user_email=claims.get("email", ""),
-            plan_id=request_data.plan_id,
-            success_url=request_data.success_url,
-            cancel_url=request_data.cancel_url
-        )
-        
-        # Log successful checkout creation
-        security_service.log_audit_event(
-            event_type=AuditEventType.PAYMENT_CREATED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={
-                "plan_id": request_data.plan_id,
-                "checkout_url": result.get("checkout_url", ""),
-                "fraud_score": fraud_result.confidence_score
-            },
-            security_level=SecurityLevel.MEDIUM,
-            success=True,
-            correlation_id=client_info["correlation_id"]
-        )
-        
-        return {
-            "success": True,
-            "data": result,
-            "fraud_check": {
-                "confidence_score": fraud_result.confidence_score,
-                "recommended_action": fraud_result.recommended_action
-            },
-            "rate_limit_info": rate_info
-        }
-        
-    except ValueError as e:
-        security_service.log_audit_event(
-            event_type=AuditEventType.PAYMENT_FAILED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={"validation_error": str(e)},
-            security_level=SecurityLevel.MEDIUM,
-            success=False,
-            error_message=str(e),
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+            print("✅ STEP 6 SUCCESS: Lemon Squeezy service call successful")
+            print(f"Result: {result}")
+            return result
+            
+        except Exception as e:
+            print("❌ STEP 6 FAILED: Lemon Squeezy service call failed")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
+            raise
+            
     except Exception as e:
-        logger.error(f"Error creating checkout session: {str(e)}")
-        security_service.log_audit_event(
-            event_type=AuditEventType.PAYMENT_FAILED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={"error": str(e)},
-            security_level=SecurityLevel.HIGH,
-            success=False,
-            error_message=str(e),
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create checkout session: {str(e)}"
-        )
+        print("=== CHECKOUT ENDPOINT ERROR ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
+        raise
 
 
 @router.post("/webhook")
@@ -505,317 +410,9 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
         )
 
 
-@router.get("/user/credits")
-async def get_user_credits(auth = Depends(get_authed_user_db), db: Session = Depends(get_db)):
-    """Get user's current credits and subscription status"""
-    try:
-        claims = auth["claims"]
-        user_row = auth["user"]
-        user_id = claims.get("uid")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User ID not found in token",
-            )
-
-        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
-        if not user_credits:
-            # Create new user with free tier
-            user_credits = lemon_squeezy.db_service.create_user_credits(db, user_id, "free")
-
-        return {
-            "success": True,
-            "data": user_credits.to_dict(),
-        }
-
-    except Exception as e:
-        logger.error(f"Error getting user credits: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get user credits: {str(e)}",
-        )
-
-
-@router.post("/user/credits/check")
-async def check_user_credits(
-    request_data: CreditCheckRequest,
-    request: Request,
-    auth = Depends(get_authed_user_db),
-    db: Session = Depends(get_db)
-):
-    """Check if user has sufficient credits for generation with enhanced security"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_id = claims.get("uid")
-    
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found in token"
-        )
-    
-    # Check rate limits
-    allowed, rate_info = rate_limiting_service.check_rate_limit(
-        endpoint="credit_check",
-        user_id=user_id,
-        ip_address=client_info["ip_address"]
-    )
-    
-    if not allowed:
-        security_service.log_audit_event(
-            event_type=AuditEventType.RATE_LIMIT_EXCEEDED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data=rate_info,
-            security_level=SecurityLevel.MEDIUM,
-            success=False,
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please try again later.",
-            headers={"X-RateLimit-Info": str(rate_info)}
-        )
-    
-    try:
-        batch_size = request_data.batch_size
-        
-        # Validate batch size
-        if batch_size <= 0 or batch_size > 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Batch size must be between 1 and 100"
-            )
-        
-        # Check rate limits first
-        can_proceed, rate_limit_info = await lemon_squeezy.check_rate_limit(user_id)
-        
-        if not can_proceed:
-            security_service.log_audit_event(
-                event_type=AuditEventType.RATE_LIMIT_EXCEEDED,
-                user_id=user_id,
-                ip_address=client_info["ip_address"],
-                user_agent=client_info["user_agent"],
-                event_data=rate_limit_info,
-                security_level=SecurityLevel.MEDIUM,
-                success=False,
-                correlation_id=client_info["correlation_id"]
-            )
-            return {
-                "success": False,
-                "can_generate": False,
-                "error": rate_limit_info.get("error"),
-                "upgrade_required": rate_limit_info.get("upgrade_required", False),
-                "rate_limits": rate_limit_info.get("rate_limits", {}),
-                "correlation_id": client_info["correlation_id"]
-            }
-        
-        # Check if user can generate the requested batch size
-        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
-        if user_credits and not user_credits.can_generate(batch_size):
-            security_service.log_audit_event(
-                event_type=AuditEventType.CREDIT_DEDUCTED,
-                user_id=user_id,
-                ip_address=client_info["ip_address"],
-                user_agent=client_info["user_agent"],
-                event_data={
-                    "check_result": "insufficient_credits",
-                    "requested_batch_size": batch_size,
-                    "available_credits": user_credits.current_credits
-                },
-                security_level=SecurityLevel.LOW,
-                success=False,
-                correlation_id=client_info["correlation_id"]
-            )
-            return {
-                "success": False,
-                "can_generate": False,
-                "error": "Insufficient credits for batch size",
-                "current_credits": user_credits.current_credits,
-                "required_credits": batch_size,
-                "upgrade_required": True,
-                "correlation_id": client_info["correlation_id"]
-            }
-        
-        # Log successful credit check
-        security_service.log_audit_event(
-            event_type=AuditEventType.CREDIT_DEDUCTED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={
-                "check_result": "sufficient_credits",
-                "requested_batch_size": batch_size,
-                "available_credits": user_credits.current_credits if user_credits else 0
-            },
-            security_level=SecurityLevel.LOW,
-            success=True,
-            correlation_id=client_info["correlation_id"]
-        )
-        
-        return {
-            "success": True,
-            "can_generate": True,
-            "rate_limits": rate_limit_info.get("rate_limits", {}),
-            "current_credits": user_credits.current_credits if user_credits else 0,
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error checking user credits: {str(e)}")
-        security_service.log_audit_event(
-            event_type=AuditEventType.CREDIT_DEDUCTED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={"error": str(e)},
-            security_level=SecurityLevel.HIGH,
-            success=False,
-            error_message=str(e),
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to check user credits: {str(e)}"
-        )
-
-
-@router.post("/user/credits/deduct")
-async def deduct_user_credits(
-    request_data: CreditDeductionRequest,
-    request: Request,
-    auth = Depends(get_authed_user_db)
-):
-    """Deduct credits from user account after successful generation with secure operations"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_id = claims.get("uid")
-    
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found in token"
-        )
-    
-    # Check rate limits
-    allowed, rate_info = rate_limiting_service.check_rate_limit(
-        endpoint="credit_deduct",
-        user_id=user_id,
-        ip_address=client_info["ip_address"]
-    )
-    
-    if not allowed:
-        security_service.log_audit_event(
-            event_type=AuditEventType.RATE_LIMIT_EXCEEDED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data=rate_info,
-            security_level=SecurityLevel.MEDIUM,
-            success=False,
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please try again later.",
-            headers={"X-RateLimit-Info": str(rate_info)}
-        )
-    
-    try:
-        amount = request_data.amount
-        operation_context = request_data.operation_context or {}
-        
-        # Validate amount
-        if amount <= 0 or amount > 50:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Credit deduction amount must be between 1 and 50"
-            )
-        
-        # Use secure credit deduction
-        success, result = await secure_operations.secure_credit_deduction(
-            user_id=user_id,
-            amount=amount,
-            operation_context=operation_context,
-            correlation_id=client_info["correlation_id"]
-        )
-        
-        if not success:
-            security_service.log_audit_event(
-                event_type=AuditEventType.CREDIT_DEDUCTED,
-                user_id=user_id,
-                ip_address=client_info["ip_address"],
-                user_agent=client_info["user_agent"],
-                event_data={
-                    "amount": amount,
-                    "error": result.get("error"),
-                    "transaction_id": result.get("transaction_id")
-                },
-                security_level=SecurityLevel.MEDIUM,
-                success=False,
-                error_message=result.get("error"),
-                correlation_id=client_info["correlation_id"]
-            )
-            return {
-                "success": False,
-                "error": result.get("error"),
-                "upgrade_required": result.get("upgrade_required", False),
-                "correlation_id": client_info["correlation_id"]
-            }
-        
-        # Log successful deduction
-        security_service.log_audit_event(
-            event_type=AuditEventType.CREDIT_DEDUCTED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={
-                "amount": amount,
-                "remaining_credits": result.get("remaining_credits"),
-                "transaction_id": result.get("transaction_id")
-            },
-            security_level=SecurityLevel.MEDIUM,
-            success=True,
-            correlation_id=client_info["correlation_id"]
-        )
-        
-        return {
-            "success": True,
-            "credits_deducted": result.get("credits_deducted", amount),
-            "remaining_credits": result.get("remaining_credits", 0),
-            "transaction_id": result.get("transaction_id"),
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deducting user credits: {str(e)}")
-        security_service.log_audit_event(
-            event_type=AuditEventType.CREDIT_DEDUCTED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={"error": str(e)},
-            security_level=SecurityLevel.HIGH,
-            success=False,
-            error_message=str(e),
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to deduct user credits: {str(e)}"
-        )
-
-
 @router.get("/user/subscription")
 async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session = Depends(get_db)):
-    """Get user's subscription details"""
+    """Get user's current subscription details (returns free tier if none exists)"""
     try:
         claims = auth["claims"]
         user_row = auth["user"]
@@ -826,35 +423,42 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
                 detail="User ID not found in token",
             )
 
-        user_credits = await lemon_squeezy.get_user_credits(user_id, db_session=db)
-        if not user_credits:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
-
-        # Get plan details
-        plans = await lemon_squeezy.get_subscription_plans()
-        current_plan = None
-        for plan in plans:
-            if plan["id"] == user_credits.subscription_id:
-                current_plan = plan
-                break
-
-        # Return subscription data in the format expected by the frontend
-        if user_credits.subscription and current_plan:
-            subscription_data = {
-                "id": user_credits.subscription.id,
-                "plan_id": user_credits.subscription.plan_id,
-                "status": user_credits.subscription.status,
-                "current_period_start": user_credits.subscription.current_period_start.isoformat() if user_credits.subscription.current_period_start else None,
-                "current_period_end": user_credits.subscription.current_period_end.isoformat() if user_credits.subscription.current_period_end else None,
-                "cancel_at_period_end": False,  # Default value
-                "lemon_squeezy_subscription_id": user_credits.subscription.lemon_squeezy_subscription_id,
-                "plan": current_plan
+        # Get subscription info
+        subscription = lemon_squeezy.db_service.get_user_subscription(user_id, db)
+        
+        if not subscription:
+            # User has no subscription - return free tier details
+            # This should not happen if assign_free_plan_to_user is working correctly
+            # but we'll handle it gracefully
+            logger.warning(f"User {user_id} has no subscription record, returning free tier")
+            return {
+                "success": True,
+                "data": {
+                    "id": f"free_{user_id}",
+                    "user_id": user_id,
+                    "plan_id": "free",
+                    "status": "active",
+                    "current_period_start": None,
+                    "current_period_end": None,
+                    "cancel_at_period_end": False,
+                    "lemon_squeezy_subscription_id": None,
+                    "lemon_squeezy_customer_id": None,
+                    "trial_start": None,
+                    "trial_end": None,
+                    "subscription_metadata": {},
+                    "created_at": None,
+                    "updated_at": None,
+                    "is_trial": False,
+                    "is_active": True
+                }
             }
-        else:
-            subscription_data = None
+
+        # Return subscription data
+        subscription_data = subscription.to_dict()
+        subscription_data.update({
+            "is_trial": subscription.trial_start is not None,
+            "is_active": subscription.is_active()
+        })
 
         return {
             "success": True,
@@ -869,114 +473,54 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
         )
 
 
-@router.post("/portal")
-async def create_customer_portal(
-    request: Request,
-    auth = Depends(get_authed_user_db),
-    db: Session = Depends(get_db)
-):
-    """Create a customer portal session for subscription management"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_id = claims.get("uid")
-    
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found in token"
-        )
-    
-    # Check rate limits
-    allowed, rate_info = rate_limiting_service.check_rate_limit(
-        endpoint="portal",
-        user_id=user_id,
-        ip_address=client_info["ip_address"]
-    )
-    
-    if not allowed:
-        security_service.log_audit_event(
-            event_type=AuditEventType.RATE_LIMIT_EXCEEDED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data=rate_info,
-            security_level=SecurityLevel.MEDIUM,
-            success=False,
-            correlation_id=client_info["correlation_id"]
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please try again later.",
-            headers={"X-RateLimit-Info": str(rate_info)}
-        )
-    
+@router.get("/user/credits")
+async def get_user_credits(auth = Depends(get_authed_user_db), db: Session = Depends(get_db)):
+    """Get user's current credits and subscription status with daily credits remaining"""
     try:
-        # Import here to avoid circular imports
-        from app.repos.subscription_repo import get_customer_id_by_user
-        
-        # Get user's Lemon Squeezy customer ID
-        customer_id = get_customer_id_by_user(db, user_id)
-        
-        if not customer_id:
-            security_service.log_audit_event(
-                event_type=AuditEventType.PAYMENT_FAILED,
-                user_id=user_id,
-                ip_address=client_info["ip_address"],
-                user_agent=client_info["user_agent"],
-                event_data={"error": "no_customer_id"},
-                security_level=SecurityLevel.MEDIUM,
-                success=False,
-                error_message="No customer ID found for user",
-                correlation_id=client_info["correlation_id"]
-            )
+        claims = auth["claims"]
+        user_row = auth["user"]
+        user_id = claims.get("uid")
+        if not user_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No subscription found. Please subscribe to a plan first to access the customer portal."
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID not found in token",
             )
+
+        # Get user credits
+        user_credits = lemon_squeezy.db_service.get_user_credits(user_id, db)
+        if not user_credits:
+            # Create new user with free tier
+            user_credits = lemon_squeezy.db_service.create_user_credits(db, user_id, "free")
+
+        # Get subscription info
+        subscription = lemon_squeezy.db_service.get_user_subscription(user_id, db)
+        plan_id = subscription.plan_id if subscription else "free"
         
-        # Create portal session
-        result = await lemon_squeezy.create_portal_session(customer_id)
-        
-        # Log successful portal creation
-        security_service.log_audit_event(
-            event_type=AuditEventType.PAYMENT_CREATED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={
-                "customer_id": customer_id,
-                "portal_url": result.get("url", "")
-            },
-            security_level=SecurityLevel.MEDIUM,
-            success=True,
-            correlation_id=client_info["correlation_id"]
-        )
-        
+        # Get daily limit and usage
+        daily_limit = lemon_squeezy.db_service.get_user_daily_limit(user_id, db)
+        daily_usage_count = lemon_squeezy.db_service.get_daily_usage_count(user_id, db)
+        remaining_daily_credits = max(0, daily_limit - daily_usage_count)
+
+        # Return enhanced credit info
+        credit_data = user_credits.to_dict()
+        credit_data.update({
+            "remaining_daily_credits": remaining_daily_credits,
+            "daily_limit": daily_limit,
+            "daily_usage_count": daily_usage_count,
+            "subscription_tier": plan_id,
+            "subscription_active": subscription.is_active() if subscription else False
+        })
+
         return {
             "success": True,
-            "url": result["url"],
-            "rate_limit_info": rate_info
+            "data": credit_data,
         }
-        
-    except HTTPException:
-        raise
+
     except Exception as e:
-        logger.error(f"Error creating customer portal: {str(e)}")
-        security_service.log_audit_event(
-            event_type=AuditEventType.PAYMENT_FAILED,
-            user_id=user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={"error": str(e)},
-            security_level=SecurityLevel.HIGH,
-            success=False,
-            error_message=str(e),
-            correlation_id=client_info["correlation_id"]
-        )
+        logger.error(f"Error getting user credits: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create customer portal: {str(e)}"
+            detail=f"Failed to get user credits: {str(e)}",
         )
 
 
@@ -1040,233 +584,3 @@ async def payment_health_check(request: Request):
             "error": str(e),
             "correlation_id": client_info["correlation_id"]
         }
-
-
-# Security and Administration Endpoints
-
-@router.get("/admin/audit-logs")
-async def get_audit_logs(
-    request: Request,
-    user_id: Optional[str] = None,
-    limit: int = 50,
-    auth = Depends(get_authed_user_db)
-):
-    """Get audit logs (admin only)"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    current_user_id = claims.get("uid")
-    
-    # Check if user is admin (you should implement proper admin role checking)
-    # For now, we'll assume any authenticated user can access their own logs
-    if user_id and user_id != current_user_id:
-        # Check if current user is admin
-        user_email = claims.get("email", "")
-        admin_emails = ["admin@yourapp.com", "security@yourapp.com"]  # Configure these
-        if user_email not in admin_emails:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions to access other user's audit logs"
-            )
-    
-    try:
-        logs = security_service.get_audit_logs(
-            user_id=user_id,
-            limit=limit
-        )
-        
-        return {
-            "success": True,
-            "logs": [log.to_dict() for log in logs],
-            "count": len(logs),
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting audit logs: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get audit logs: {str(e)}"
-        )
-
-
-@router.get("/admin/rate-limit-status/{endpoint}")
-async def get_rate_limit_status(
-    endpoint: str,
-    request: Request,
-    auth = Depends(get_authed_user_db)
-):
-    """Get rate limit status for user and endpoint"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_id = claims.get("uid")
-    
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found in token"
-        )
-    
-    try:
-        status_info = rate_limiting_service.get_rate_limit_status(endpoint, user_id)
-        
-        return {
-            "success": True,
-            "rate_limit_status": status_info,
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting rate limit status: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get rate limit status: {str(e)}"
-        )
-
-
-@router.post("/admin/reset-rate-limits")
-async def reset_user_rate_limits(
-    request: Request,
-    endpoint: str,
-    target_user_id: str,
-    auth = Depends(get_authed_user_db)
-):
-    """Reset rate limits for a user (admin only)"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    current_user_id = claims.get("uid")
-    
-    # Check admin permissions
-    user_email = claims.get("email", "")
-    admin_emails = ["admin@yourapp.com", "security@yourapp.com"]
-    if user_email not in admin_emails:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions for rate limit reset"
-        )
-    
-    try:
-        success = rate_limiting_service.reset_user_limits(endpoint, target_user_id)
-        
-        security_service.log_audit_event(
-            event_type=AuditEventType.RATE_LIMIT_EXCEEDED,  # Using existing type for admin action
-            user_id=current_user_id,
-            ip_address=client_info["ip_address"],
-            user_agent=client_info["user_agent"],
-            event_data={
-                "admin_action": "rate_limit_reset",
-                "target_user_id": target_user_id,
-                "endpoint": endpoint,
-                "success": success
-            },
-            security_level=SecurityLevel.HIGH,
-            success=success,
-            correlation_id=client_info["correlation_id"]
-        )
-        
-        return {
-            "success": success,
-            "message": f"Rate limits reset for user {target_user_id} on endpoint {endpoint}" if success else "Failed to reset rate limits",
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error resetting rate limits: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reset rate limits: {str(e)}"
-        )
-
-
-@router.get("/admin/transactions")
-async def get_active_transactions(
-    request: Request,
-    user_filter: Optional[str] = None,
-    auth = Depends(get_authed_user_db)
-):
-    """Get active secure transactions (admin only)"""
-    client_info = get_client_info(request)
-    
-    # Check admin permissions
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_email = claims.get("email", "")
-    admin_emails = ["admin@yourapp.com", "security@yourapp.com"]
-    if user_email not in admin_emails:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to view transactions"
-        )
-    
-    try:
-        transactions = secure_operations.get_active_transactions(user_id=user_filter)
-        
-        return {
-            "success": True,
-            "transactions": transactions,
-            "count": len(transactions),
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting active transactions: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get active transactions: {str(e)}"
-        )
-
-
-@router.get("/transaction/{transaction_id}")
-async def get_transaction_status(
-    transaction_id: str,
-    request: Request,
-    auth = Depends(get_authed_user_db)
-):
-    """Get transaction status"""
-    client_info = get_client_info(request)
-    claims = auth["claims"]
-    user_row = auth["user"]
-    user_id = claims.get("uid")
-    
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not found in token"
-        )
-    
-    try:
-        transaction = secure_operations.get_transaction_status(transaction_id)
-        
-        if not transaction:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Transaction not found"
-            )
-        
-        # Check if user can access this transaction
-        if transaction["user_id"] != user_id:
-            # Check admin permissions
-            user_email = claims.get("email", "")
-            admin_emails = ["admin@yourapp.com", "security@yourapp.com"]
-            if user_email not in admin_emails:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Insufficient permissions to view this transaction"
-                )
-        
-        return {
-            "success": True,
-            "transaction": transaction,
-            "correlation_id": client_info["correlation_id"]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting transaction status: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get transaction status: {str(e)}"
-        )

@@ -34,8 +34,21 @@ class LemonSqueezyService:
         self.api_key = os.getenv("LEMON_SQUEEZY_API_KEY")
         self.webhook_secret = os.getenv("LEMON_SQUEEZY_WEBHOOK_SECRET")
         self.store_id = os.getenv("LEMON_SQUEEZY_STORE_ID")
-        self.monthly_variant_id = os.getenv("LEMON_SQUEEZY_MONTHLY_VARIANT_ID")
-        self.yearly_variant_id = os.getenv("LEMON_SQUEEZY_YEARLY_VARIANT_ID")
+        # Plan to variant ID mapping
+        self.plan_to_variant = {
+            "pro": os.getenv("LEMON_SQUEEZY_VARIANT_ID_PRO"),
+            "enterprise": os.getenv("LEMON_SQUEEZY_VARIANT_ID_ENTERPRISE"),
+            "pro-yearly": os.getenv("LEMON_SQUEEZY_VARIANT_ID_YEARLY"),
+        }
+        
+        # Validate variant IDs
+        missing_variants = [plan for plan, variant_id in self.plan_to_variant.items() if not variant_id]
+        if missing_variants:
+            logger.warning(f"Missing variant IDs for plans: {missing_variants}")
+            logger.warning("Please set the following environment variables:")
+            for plan in missing_variants:
+                env_var = f"LEMON_SQUEEZY_VARIANT_ID_{plan.upper().replace('-', '_')}"
+                logger.warning(f"  {env_var}")
         self.base_url = "https://api.lemonsqueezy.com/v1"
         
         if not self.api_key:
@@ -48,7 +61,8 @@ class LemonSqueezyService:
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/vnd.api+json",
-            "Content-Type": "application/vnd.api+json"
+            "Content-Type": "application/vnd.api+json",
+            "Version": "2021-07-07"
         }
         # Initialize SQLAlchemy service
         self.db_service = SQLAlchemyPaymentService()
@@ -148,14 +162,28 @@ class LemonSqueezyService:
                 else:
                     raise ValueError(f"Unsupported HTTP method: {method}")
                 
+                # Log successful response
+                if response.status_code in [200, 201]:
+                    logger.info(f"Lemon Squeezy API Success: {response.status_code}")
+                    logger.info(f"Response: {response.text}")
+                
                 response.raise_for_status()
                 return response.json()
                 
             except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+                logger.error("=== LEMON SQUEEZY API ERROR ===")
+                logger.error(f"HTTP Status: {e.response.status_code}")
+                logger.error(f"Response Text: {e.response.text}")
+                logger.error(f"Request URL: {url}")
+                logger.error(f"Request Headers: {json.dumps(self.headers, indent=2)}")
+                logger.error(f"Request Data: {json.dumps(data, indent=2) if data else 'None'}")
+                logger.error("=== END ERROR ===")
                 raise Exception(f"Lemon Squeezy API error: {e.response.status_code} - {e.response.text}")
             except httpx.RequestError as e:
                 logger.error(f"Request error: {str(e)}")
+                logger.error(f"Network error details: {str(e)}")
+                logger.error(f"Request URL: {url}")
+                logger.error(f"Request headers: {self.headers}")
                 raise Exception(f"Network error: {str(e)}")
     
     def verify_webhook_signature(self, payload: str, signature: str) -> bool:
@@ -176,7 +204,7 @@ class LemonSqueezyService:
         self, 
         user_id: str, 
         user_email: str,
-        plan_id: str, 
+        variant_id: str, 
         success_url: str, 
         cancel_url: str
     ) -> Dict[str, Any]:
@@ -185,40 +213,46 @@ class LemonSqueezyService:
         if not user_email or "@" not in user_email:
             raise ValueError("Valid user email is required for checkout session")
         
-        plan = self.default_plans.get(plan_id)
-        if not plan:
-            raise ValueError(f"Invalid plan ID: {plan_id}")
-
-        if plan.price == 0:
-            # Free plan - no checkout needed
-            return {
-                "success": True,
-                "checkout_url": None,
-                "message": "Free plan activated"
-            }
-
+        # Validate variant ID format
+        try:
+            int(variant_id)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid variant ID format: {variant_id} (must be numeric)")
+            raise ValueError(f"Invalid variant ID format: {variant_id}")
+        
         # Create checkout session data
         test_mode = os.getenv("LEMON_SQUEEZY_TEST_MODE", "true").lower() == "true"
-        # Select variant either from env override or plan config
-        variant_id = (
-            self.monthly_variant_id if plan_id in ("basic", "monthly") and self.monthly_variant_id else
-            self.yearly_variant_id if plan_id in ("pro", "yearly") and self.yearly_variant_id else
-            plan.lemon_squeezy_variant_id
-        )
+        
+        # 🎯 LEMON SQUEEZY PAYLOAD DEBUG 🎯
+        print("🎯 LEMON SQUEEZY PAYLOAD DEBUG 🎯")
+        print("=== VARIABLES ===")
+        print(f"Variant ID: {variant_id}")
+        print(f"Store ID: {self.store_id}")
+        print(f"User ID: {user_id}")
+        print(f"User Email: {user_email}")
+        print(f"Success URL: {success_url}")
+        print(f"Cancel URL: {cancel_url}")
+        print(f"Test Mode: {test_mode}")
+        
+        # Updated payload structure based on current Lemon Squeezy API
+        # Using minimal required structure to avoid potential issues
         checkout_data = {
             "data": {
                 "type": "checkouts",
                 "attributes": {
+                    "checkout_options": {
+                        "embed": False,
+                        "media": False
+                    },
                     "checkout_data": {
-                        "email": user_email,  # Use the actual authenticated user's email
+                        "email": user_email,
                         "custom": {
-                            "user_id": user_id,
-                            "plan_id": plan_id
+                            "user_id": user_id
                         }
                     },
-                    "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
-                    "preview": False,
-                    "test_mode": test_mode
+                    "product_options": {
+                        "redirect_url": success_url
+                    }
                 },
                 "relationships": {
                     "store": {
@@ -230,15 +264,41 @@ class LemonSqueezyService:
                     "variant": {
                         "data": {
                             "type": "variants",
-                            "id": variant_id
+                            "id": str(variant_id)
                         }
                     }
                 }
             }
         }
+        
+        print("=== PAYLOAD BEING SENT ===")
+        import json
+        print(json.dumps(checkout_data, indent=2))
+
+        # Log the payload being sent to Lemon Squeezy
+        logger.info("=== LEMON SQUEEZY DEBUG ===")
+        logger.info(f"API Key: {self.api_key[:10]}...")
+        logger.info(f"Store ID: {self.store_id}")
+        logger.info(f"Variant ID: {variant_id}")
+        logger.info(f"User ID: {user_id}")
+        logger.info(f"User Email: {user_email}")
+        logger.info(f"Full Payload: {json.dumps(checkout_data, indent=2)}")
+        logger.info(f"Endpoint: {self.base_url}/checkouts")
+        logger.info(f"Headers: {json.dumps(self.headers, indent=2)}")
+        logger.info("=== END DEBUG ===")
+
+        print("=== HEADERS ===")
+        print(json.dumps(self.headers, indent=2))
+        
+        print("=== API ENDPOINT ===")
+        print(f"POST {self.base_url}/checkouts")
 
         try:
             response = await self._make_request("POST", "checkouts", checkout_data)
+            
+            print("=== RESPONSE ===")
+            print(f"Status: {response.get('status_code', 'Unknown')}")
+            print(f"Response: {json.dumps(response, indent=2)}")
 
             return {
                 "success": True,
@@ -246,7 +306,14 @@ class LemonSqueezyService:
                 "checkout_id": response["data"]["id"]
             }
         except Exception as e:
+            print("=== ERROR RESPONSE ===")
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Message: {str(e)}")
+            print(f"Full Error: {e}")
+            
             logger.error(f"Error creating checkout session: {str(e)}")
+            logger.error(f"Lemon Squeezy response details: {str(e)}")
+            logger.error(f"Full error context: {type(e).__name__}: {str(e)}")
             raise Exception(f"Failed to create checkout session: {str(e)}")
     
     async def get_subscription_plans(self, db_session=None) -> List[Dict[str, Any]]:
@@ -258,8 +325,15 @@ class LemonSqueezyService:
             else:
                 # Use a temporary session for backward compatibility
                 from ..database.deps import get_db_session
-                with get_db_session() as session:
+                session_gen = get_db_session()
+                session = next(session_gen)
+                try:
                     db_plans = self.db_service.get_subscription_plans(session)
+                finally:
+                    try:
+                        next(session_gen)
+                    except StopIteration:
+                        pass
             if db_plans:
                 return db_plans
         except Exception as e:
@@ -271,12 +345,19 @@ class LemonSqueezyService:
     async def get_user_credits(self, user_id: str, db_session=None) -> Optional[UserCredits]:
         """Get user credits from database"""
         if db_session:
-            return self.db_service.get_user_credits(db_session, user_id)
+            return self.db_service.get_user_credits(user_id, db_session)
         else:
             # Use a temporary session for backward compatibility
             from ..database.deps import get_db_session
-            with get_db_session() as session:
-                return self.db_service.get_user_credits(session, user_id)
+            session_gen = get_db_session()
+            session = next(session_gen)
+            try:
+                return self.db_service.get_user_credits(user_id, session)
+            finally:
+                try:
+                    next(session_gen)
+                except StopIteration:
+                    pass
     
     async def update_user_credits(self, user_credits: UserCredits, db_session=None) -> bool:
         """Update user credits in database"""
@@ -285,8 +366,15 @@ class LemonSqueezyService:
         else:
             # Use a temporary session for backward compatibility
             from ..database.deps import get_db_session
-            with get_db_session() as session:
+            session_gen = get_db_session()
+            session = next(session_gen)
+            try:
                 return self.db_service.update_user_credits(session, user_credits)
+            finally:
+                try:
+                    next(session_gen)
+                except StopIteration:
+                    pass
     
     async def add_payment_history(self, payment: PaymentHistory, db_session=None) -> bool:
         """Add payment to history"""
@@ -295,8 +383,15 @@ class LemonSqueezyService:
         else:
             # Use a temporary session for backward compatibility
             from ..database.deps import get_db_session
-            with get_db_session() as session:
+            session_gen = get_db_session()
+            session = next(session_gen)
+            try:
                 return self.db_service.add_payment_history(session, payment)
+            finally:
+                try:
+                    next(session_gen)
+                except StopIteration:
+                    pass
     
     async def process_webhook(self, payload: str, signature: str) -> Dict[str, Any]:
         """Process incoming webhook from Lemon Squeezy"""
@@ -506,18 +601,32 @@ class LemonSqueezyService:
         else:
             # Use a temporary session for backward compatibility
             from ..database.deps import get_db_session
-            with get_db_session() as session:
+            session_gen = get_db_session()
+            session = next(session_gen)
+            try:
                 return self.db_service.check_rate_limits(session, user_id)
+            finally:
+                try:
+                    next(session_gen)
+                except StopIteration:
+                    pass
     
     async def deduct_credits(self, user_id: str, amount: int = 1, db_session=None) -> Tuple[bool, Dict[str, Any]]:
         """Deduct credits from user account"""
         if db_session:
-            return self.db_service.use_credits(db_session, user_id, amount)
+            return self.db_service.use_credits(user_id, amount, db_session)
         else:
             # Use a temporary session for backward compatibility
             from ..database.deps import get_db_session
-            with get_db_session() as session:
-                return self.db_service.use_credits(session, user_id, amount)
+            session_gen = get_db_session()
+            session = next(session_gen)
+            try:
+                return self.db_service.use_credits(user_id, amount, session)
+            finally:
+                try:
+                    next(session_gen)
+                except StopIteration:
+                    pass
     
     async def create_portal_session(self, customer_id: str) -> Dict[str, Any]:
         """Create a customer portal session for subscription management"""

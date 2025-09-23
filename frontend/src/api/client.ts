@@ -11,7 +11,24 @@ export const api = axios.create({ baseURL: API_BASE, timeout: 300000, headers: {
 api.interceptors.request.use(async (config) => {
   const token = await getIdToken();
   if (token) {
+    // Debug: Verify token format
+    const segments = token.split('.');
+    if (segments.length !== 3) {
+      console.error('❌ INVALID TOKEN FORMAT:', {
+        length: token.length,
+        segments: segments.length,
+        preview: token.substring(0, 50) + '...'
+      });
+    } else {
+      console.log('✅ VALID TOKEN FORMAT:', {
+        length: token.length,
+        segments: segments.length,
+        preview: token.substring(0, 50) + '...'
+      });
+    }
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    console.warn('⚠️ No auth token available for request');
   }
   return config;
 });
@@ -77,8 +94,20 @@ export const paymentApi = {
     return response.data.plans;
   },
   getSubscription: async () => {
-    const response = await api.get('/api/payment/user/subscription');
-    return response.data.data;
+    try {
+      const response = await api.get('/api/payment/user/subscription');
+      return response.data.data;
+    } catch (error) {
+      // Handle 404 as "no subscription" - this is normal for new users
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 404) {
+          return null; // No subscription exists
+        }
+      }
+      // Re-throw other errors (500, network issues, etc.)
+      throw error;
+    }
   },
   getCreditBalance: async () => {
     const response = await api.get('/api/payment/user/credits');
@@ -94,11 +123,18 @@ export const paymentApi = {
   },
   createCheckoutSession: async (variantId: string, successUrl?: string, cancelUrl?: string) => {
     const response = await api.post('/api/payment/checkout', {
-      plan_id: variantId,
+      variant_id: variantId,
       success_url: successUrl,
       cancel_url: cancelUrl
     });
-    return response.data.data;
+    console.log("=== API CLIENT DEBUG ===");
+    console.log("Full axios response:", response);
+    console.log("Response data:", response.data);
+    console.log("Response data type:", typeof response.data);
+    console.log("Response data keys:", Object.keys(response.data || {}));
+    
+    // Backend returns checkout data directly, not wrapped in 'data' property
+    return response.data;
   },
   cancelSubscription: async (subscriptionId: string) => {
     const response = await api.post(`/api/payment/subscription/${subscriptionId}/cancel`);

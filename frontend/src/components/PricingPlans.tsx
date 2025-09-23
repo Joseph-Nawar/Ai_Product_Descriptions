@@ -20,6 +20,34 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
   const error = queryError ? handleApiError(queryError) : null;
 
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
+    // Test authentication first
+    console.log('🔐 TESTING AUTHENTICATION');
+    const { auth } = await import('../auth/firebase');
+    const user = auth.currentUser;
+    console.log('Current user:', user?.uid);
+    
+    if (user) {
+      try {
+        const token = await user.getIdToken();
+        console.log('Token segments:', token.split('.').length);
+        console.log('Token valid:', token.split('.').length === 3);
+        console.log('Token preview:', token.substring(0, 50) + '...');
+      } catch (error) {
+        console.error('Token error:', error);
+      }
+    } else {
+      console.error('❌ No authenticated user');
+      alert('Please sign in to purchase a plan.');
+      return;
+    }
+    
+    // Free plan doesn't need a variant ID (it's not purchasable)
+    if (plan.id === 'free') {
+      alert('You are already on the free plan. Please select a paid plan to upgrade.');
+      return;
+    }
+    
+    // Paid plans must have a variant ID to be purchasable
     if (!plan.lemon_squeezy_variant_id) {
       // Show user-friendly error message
       alert('This plan is not available for purchase at the moment. Please try again later.');
@@ -33,14 +61,29 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
       const successUrl = `${window.location.origin}/billing?success=true`;
       const cancelUrl = `${window.location.origin}/pricing?cancelled=true`;
       
-      const session: CheckoutSession = await paymentApi.createCheckoutSession(
+      console.log("=== CHECKOUT DEBUG ===");
+      console.log("Plan variant ID:", plan.lemon_squeezy_variant_id);
+      console.log("Success URL:", successUrl);
+      console.log("Cancel URL:", cancelUrl);
+      
+      const response = await paymentApi.createCheckoutSession(
         plan.lemon_squeezy_variant_id,
         successUrl,
         cancelUrl
       );
-
-      // Redirect to Lemon Squeezy checkout
-      window.location.href = session.checkout_url;
+      
+      console.log("Full API response:", response);
+      console.log("Response type:", typeof response);
+      console.log("Response keys:", Object.keys(response || {}));
+      
+      // ✅ PROPER RESPONSE HANDLING
+      if (response && response.checkout_url) {
+        console.log("✅ Valid response, redirecting to:", response.checkout_url);
+        window.location.href = response.checkout_url;
+      } else {
+        console.error("❌ Invalid response format:", response);
+        alert("Checkout failed: Invalid response from server");
+      }
     } catch (err) {
       // Handle checkout error with user-friendly message
       console.error('Checkout error:', err);
@@ -241,6 +284,3 @@ export function PricingPlans({ onPlanSelect, currentPlanId, className = "" }: Pr
     </div>
   );
 }
-
-
-

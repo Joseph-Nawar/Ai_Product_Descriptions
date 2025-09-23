@@ -186,18 +186,36 @@ class UserSubscription(Base):
     
     def is_active(self) -> bool:
         """Check if subscription is currently active"""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(timezone.utc)
+        
+        # Ensure current_period_end is timezone-aware for comparison
+        period_end = self.current_period_end
+        if period_end and period_end.tzinfo is None:
+            period_end = period_end.replace(tzinfo=timezone.utc)
+        
         return (
             self.status == SubscriptionStatus.ACTIVE and
-            self.current_period_end > now
+            period_end and period_end > now
         )
     
     def is_trial(self) -> bool:
         """Check if subscription is in trial period"""
         if not self.trial_start or not self.trial_end:
             return False
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        return self.trial_start <= now <= self.trial_end
+        
+        now = datetime.now(timezone.utc)
+        
+        # Ensure trial_start and trial_end are timezone-aware for comparison
+        trial_start = self.trial_start
+        trial_end = self.trial_end
+        
+        if trial_start and trial_start.tzinfo is None:
+            trial_start = trial_start.replace(tzinfo=timezone.utc)
+        
+        if trial_end and trial_end.tzinfo is None:
+            trial_end = trial_end.replace(tzinfo=timezone.utc)
+        
+        return trial_start <= now <= trial_end
     
     def to_dict(self):
         """Convert to dictionary"""

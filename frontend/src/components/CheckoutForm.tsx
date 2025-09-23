@@ -20,11 +20,18 @@ export function CheckoutForm({ plan, onSuccess, onCancel, className = "" }: Chec
   useEffect(() => {
     // Set default URLs
     const baseUrl = window.location.origin;
-    setSuccessUrl(`${baseUrl}/billing?success=true&plan=${plan.id}`);
+    setSuccessUrl(`${baseUrl}/pricing?success=true&plan=${plan.id}`);
     setCancelUrl(`${baseUrl}/pricing?cancelled=true&plan=${plan.id}`);
   }, [plan.id]);
 
   const handleCreateCheckout = async () => {
+    // Free plan doesn't need a variant ID (it's not purchasable)
+    if (plan.id === 'free') {
+      setError('You are already on the free plan. Please select a paid plan to upgrade.');
+      return;
+    }
+    
+    // Paid plans must have a variant ID to be purchasable
     if (!plan.lemon_squeezy_variant_id) {
       setError('This plan is not available for purchase at the moment.');
       return;
