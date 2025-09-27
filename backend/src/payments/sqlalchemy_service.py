@@ -159,8 +159,8 @@ class SQLAlchemyPaymentService:
         session, created = self._ensure_session(session)
         
         try:
-            # Use SELECT FOR UPDATE to prevent race conditions
-            user_credits = session.query(UserCredits).options(joinedload(UserCredits.subscription)).filter_by(user_id=user_id).with_for_update().first()
+            # Use SELECT FOR UPDATE to prevent race conditions (without joinedload to avoid outer join issues)
+            user_credits = session.query(UserCredits).filter_by(user_id=user_id).with_for_update().first()
             
             if not user_credits:
                 return False, {"error": "User not found"}
