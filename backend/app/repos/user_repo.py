@@ -10,7 +10,7 @@ def get_or_create_user(db: Session, uid: str, email: Optional[str] = None) -> Us
         return user
     
     # Create new user
-    user = User(id=uid, email=email)
+    user = User(id=uid, email=email, firebase_uid=uid)
     db.add(user)
     db.flush()
     
