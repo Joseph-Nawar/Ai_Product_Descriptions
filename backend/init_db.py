@@ -82,6 +82,83 @@ def init_database():
                 )
             """))
             
+            # Create user_subscriptions table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(50) NOT NULL,
+                    plan_id VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'active',
+                    current_period_start TIMESTAMP WITH TIME ZONE,
+                    current_period_end TIMESTAMP WITH TIME ZONE,
+                    cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
+                    lemon_squeezy_subscription_id VARCHAR(100),
+                    lemon_squeezy_customer_id VARCHAR(100),
+                    trial_start TIMESTAMP WITH TIME ZONE,
+                    trial_end TIMESTAMP WITH TIME ZONE,
+                    subscription_metadata JSONB,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (plan_id) REFERENCES subscription_plans(id)
+                )
+            """))
+            
+            # Create user_credits table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_credits (
+                    user_id VARCHAR(50) PRIMARY KEY,
+                    current_credits INTEGER NOT NULL DEFAULT 0,
+                    total_credits_purchased INTEGER NOT NULL DEFAULT 0,
+                    total_credits_used INTEGER NOT NULL DEFAULT 0,
+                    total_credits_expired INTEGER NOT NULL DEFAULT 0,
+                    subscription_id INTEGER,
+                    last_credit_refill TIMESTAMP WITH TIME ZONE,
+                    next_credit_refill TIMESTAMP WITH TIME ZONE,
+                    credits_used_this_period INTEGER NOT NULL DEFAULT 0,
+                    period_start TIMESTAMP WITH TIME ZONE,
+                    period_end TIMESTAMP WITH TIME ZONE,
+                    credits_metadata JSONB,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (subscription_id) REFERENCES user_subscriptions(id)
+                )
+            """))
+            
+            # Create transactions table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(50) NOT NULL,
+                    subscription_id INTEGER,
+                    lemon_squeezy_order_id VARCHAR(100),
+                    lemon_squeezy_order_number VARCHAR(100),
+                    amount DECIMAL(10,2) NOT NULL,
+                    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+                    status VARCHAR(20) NOT NULL,
+                    payment_method VARCHAR(50),
+                    transaction_metadata JSONB,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (subscription_id) REFERENCES user_subscriptions(id)
+                )
+            """))
+            
+            # Create webhook_events table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS webhook_events (
+                    id SERIAL PRIMARY KEY,
+                    event_type VARCHAR(50) NOT NULL,
+                    event_data JSONB NOT NULL,
+                    processed BOOLEAN NOT NULL DEFAULT false,
+                    processing_error TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    processed_at TIMESTAMP WITH TIME ZONE
+                )
+            """))
+            
             # Insert default subscription plans
             conn.execute(text("""
                 INSERT INTO subscription_plans (id, name, description, price, credits_per_period, max_products_per_batch, features, lemon_squeezy_variant_id, sort_order)
