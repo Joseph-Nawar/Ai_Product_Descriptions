@@ -82,9 +82,10 @@ def init_database():
                 )
             """))
             
-            # Create user_subscriptions table
+            # Create or recreate user_subscriptions table
+            conn.execute(text("DROP TABLE IF EXISTS user_subscriptions CASCADE"))
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS user_subscriptions (
+                CREATE TABLE user_subscriptions (
                     id VARCHAR(100) PRIMARY KEY,
                     user_id VARCHAR(50) NOT NULL,
                     plan_id VARCHAR(50) NOT NULL,
@@ -104,9 +105,10 @@ def init_database():
                 )
             """))
             
-            # Create user_credits table
+            # Create or recreate user_credits table
+            conn.execute(text("DROP TABLE IF EXISTS user_credits CASCADE"))
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS user_credits (
+                CREATE TABLE user_credits (
                     user_id VARCHAR(50) PRIMARY KEY,
                     current_credits INTEGER NOT NULL DEFAULT 0,
                     total_credits_purchased INTEGER NOT NULL DEFAULT 0,
@@ -126,9 +128,10 @@ def init_database():
                 )
             """))
             
-            # Create transactions table
+            # Create or recreate transactions table
+            conn.execute(text("DROP TABLE IF EXISTS transactions CASCADE"))
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS transactions (
+                CREATE TABLE transactions (
                     id SERIAL PRIMARY KEY,
                     user_id VARCHAR(50) NOT NULL,
                     subscription_id VARCHAR(100),
@@ -146,10 +149,12 @@ def init_database():
                 )
             """))
             
-            # Create webhook_events table
+            # Create or recreate webhook_events table
+            conn.execute(text("DROP TABLE IF EXISTS webhook_events CASCADE"))
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS webhook_events (
+                CREATE TABLE webhook_events (
                     id SERIAL PRIMARY KEY,
+                    event_id VARCHAR(100) UNIQUE NOT NULL,
                     event_type VARCHAR(50) NOT NULL,
                     event_data JSONB NOT NULL,
                     processed BOOLEAN NOT NULL DEFAULT false,
@@ -159,9 +164,10 @@ def init_database():
                 )
             """))
             
-            # Create usage_logs table
+            # Create or recreate usage_logs table
+            conn.execute(text("DROP TABLE IF EXISTS usage_logs CASCADE"))
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS usage_logs (
+                CREATE TABLE usage_logs (
                     id SERIAL PRIMARY KEY,
                     user_id VARCHAR(50) NOT NULL,
                     usage_type VARCHAR(50) NOT NULL,
