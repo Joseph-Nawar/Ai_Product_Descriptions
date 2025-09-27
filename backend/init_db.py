@@ -164,29 +164,29 @@ def init_database():
                 )
             """))
             
-            # Create or recreate usage_logs table
-            conn.execute(text("DROP TABLE IF EXISTS usage_logs CASCADE"))
-            conn.execute(text("""
-                CREATE TABLE usage_logs (
-                    id SERIAL PRIMARY KEY,
-                    user_id VARCHAR(50) NOT NULL,
-                    usage_type VARCHAR(50) NOT NULL,
-                    credits_used INTEGER NOT NULL DEFAULT 0,
-                    product_count INTEGER NOT NULL DEFAULT 0,
-                    language_code VARCHAR(10),
-                    category VARCHAR(100),
-                    tokens_used INTEGER,
-                    response_time_ms INTEGER,
-                    cost_usd DECIMAL(10,4),
-                    request_id VARCHAR(100),
-                    batch_id VARCHAR(100),
-                    endpoint_used VARCHAR(100),
-                    user_credits_id VARCHAR(50),
-                    usage_metadata JSONB,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                )
-            """))
+    # Create or recreate usage_logs table
+    conn.execute(text("DROP TABLE IF EXISTS usage_logs CASCADE"))
+    conn.execute(text("""
+        CREATE TABLE usage_logs (
+            id VARCHAR(100) PRIMARY KEY,
+            user_id VARCHAR(50) NOT NULL,
+            usage_type VARCHAR(50) NOT NULL,
+            credits_used INTEGER NOT NULL DEFAULT 0,
+            product_count INTEGER NOT NULL DEFAULT 0,
+            language_code VARCHAR(10),
+            category VARCHAR(100),
+            tokens_used INTEGER,
+            response_time_ms INTEGER,
+            cost_usd DECIMAL(10,4),
+            request_id VARCHAR(100),
+            batch_id VARCHAR(100),
+            endpoint_used VARCHAR(100),
+            user_credits_id VARCHAR(50),
+            usage_metadata JSONB,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """))
             
             # Insert default subscription plans
             conn.execute(text("""
