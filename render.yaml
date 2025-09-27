@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: ai-product-descriptions-backend
+    env: python
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn src.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENV
+        value: production
+      - key: LEMON_SQUEEZY_TEST_MODE
+        value: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://productgenie.com,https://www.productgenie.com
+      - key: FIREBASE_PROJECT_ID
+        value: textgenie-8dd5f
+      - key: LEMON_SQUEEZY_API_KEY
+        sync: false
+      - key: LEMON_SQUEEZY_STORE_ID
+        value: 224253
+      - key: LEMON_SQUEEZY_WEBHOOK_SECRET
+        sync: false
+      - key: LEMON_SQUEEZY_VARIANT_ID_PRO
+        value: 1013286
+      - key: LEMON_SQUEEZY_VARIANT_ID_ENTERPRISE
+        value: 1013276
+      - key: LEMON_SQUEEZY_VARIANT_ID_YEARLY
+        value: 1013282
+      - key: FIREBASE_SERVICE_ACCOUNT_BASE64
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-descriptions-db
+          property: connectionString
+
+databases:
+  - name: ai-descriptions-db
+    databaseName: ai_descriptions
+    user: ai_user

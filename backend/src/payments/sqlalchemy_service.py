@@ -257,6 +257,36 @@ class SQLAlchemyPaymentService:
         
         return False
     
+    def update_user_subscription(self, session: Session, user_id: str, new_plan_id: str) -> bool:
+        """Update user subscription plan"""
+        try:
+            # Get existing subscription
+            subscription = self.get_user_subscription(user_id, session)
+            
+            if subscription:
+                # Update existing subscription
+                subscription.plan_id = new_plan_id
+                subscription.status = SubscriptionStatus.ACTIVE
+                
+                # Update period end
+                from datetime import datetime, timezone, timedelta
+                now = datetime.now(timezone.utc)
+                period_end = now + timedelta(days=30)
+                subscription.current_period_end = period_end
+                
+                session.flush()
+                self.logger.info(f"Updated subscription for user {user_id} to plan {new_plan_id}")
+                return True
+            else:
+                # Create new subscription if none exists
+                subscription = self.create_user_subscription(session, user_id, new_plan_id)
+                self.logger.info(f"Created new subscription for user {user_id} with plan {new_plan_id}")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Failed to update subscription for user {user_id}: {str(e)}")
+            return False
+    
     def add_payment_history(self, session: Session, payment: PaymentHistory) -> bool:
         """Add payment to history"""
         try:

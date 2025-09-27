@@ -531,11 +531,29 @@ class LemonSqueezyService:
             if not user_id:
                 # Fallback for backward compatibility with old webhook data
                 user_id = attributes.get("user_email", "").split("@")[0]
+            
+            if not user_id:
+                logger.error(f"No user_id found in subscription creation webhook")
+                return {"status": "error", "reason": "No user_id found"}
+            
             status = attributes.get("status")
+            variant_id = attributes.get("variant_id")
             
-            logger.info(f"Subscription created: {subscription_id} for user {user_id}, status: {status}")
+            # Map variant_id to plan_id
+            plan_id = self._get_plan_from_variant_id(variant_id)
+            if not plan_id:
+                logger.error(f"Unknown variant_id {variant_id} in subscription creation")
+                return {"status": "error", "reason": f"Unknown variant_id: {variant_id}"}
             
-            return {"status": "success", "subscription_id": subscription_id}
+            # Update user subscription
+            success = await self._update_user_subscription(user_id, plan_id, subscription_id, status)
+            
+            if success:
+                logger.info(f"Subscription created successfully: {subscription_id} for user {user_id}, plan: {plan_id}, status: {status}")
+                return {"status": "success", "subscription_id": subscription_id, "plan_id": plan_id}
+            else:
+                logger.error(f"Failed to update subscription for user {user_id}")
+                return {"status": "error", "reason": "Failed to update user subscription"}
             
         except Exception as e:
             logger.error(f"Error handling subscription creation: {str(e)}")
@@ -584,11 +602,29 @@ class LemonSqueezyService:
             if not user_id:
                 # Fallback for backward compatibility with old webhook data
                 user_id = attributes.get("user_email", "").split("@")[0]
+            
+            if not user_id:
+                logger.error(f"No user_id found in subscription update webhook")
+                return {"status": "error", "reason": "No user_id found"}
+            
             status = attributes.get("status")
+            variant_id = attributes.get("variant_id")
             
-            logger.info(f"Subscription updated: {subscription_id} for user {user_id}, status: {status}")
+            # Map variant_id to plan_id
+            plan_id = self._get_plan_from_variant_id(variant_id)
+            if not plan_id:
+                logger.error(f"Unknown variant_id {variant_id} in subscription update")
+                return {"status": "error", "reason": f"Unknown variant_id: {variant_id}"}
             
-            return {"status": "success", "subscription_id": subscription_id}
+            # Update user subscription
+            success = await self._update_user_subscription(user_id, plan_id, subscription_id, status)
+            
+            if success:
+                logger.info(f"Subscription updated successfully: {subscription_id} for user {user_id}, plan: {plan_id}, status: {status}")
+                return {"status": "success", "subscription_id": subscription_id, "plan_id": plan_id}
+            else:
+                logger.error(f"Failed to update subscription for user {user_id}")
+                return {"status": "error", "reason": "Failed to update user subscription"}
             
         except Exception as e:
             logger.error(f"Error handling subscription update: {str(e)}")
@@ -653,3 +689,104 @@ class LemonSqueezyService:
         except Exception as e:
             logger.error(f"Error creating portal session: {str(e)}")
             raise Exception(f"Failed to create portal session: {str(e)}")
+    
+    def _get_plan_from_variant_id(self, variant_id: str) -> Optional[str]:
+        """Map Lemon Squeezy variant_id to internal plan_id"""
+        if not variant_id:
+            return None
+        
+        # Reverse lookup from plan_to_variant mapping
+        variant_to_plan = {v: k for k, v in self.plan_to_variant.items()}
+        plan_id = variant_to_plan.get(variant_id)
+        
+        if plan_id:
+            logger.info(f"Mapped variant_id {variant_id} to plan {plan_id}")
+        else:
+            logger.warning(f"Unknown variant_id: {variant_id}")
+        
+        return plan_id
+    
+    async def _update_user_subscription(self, user_id: str, plan_id: str, subscription_id: str = None, status: str = "active") -> bool:
+        """Update user subscription in database"""
+        try:
+            from ..database.deps import get_db_session
+            
+            # Get database session
+            session_gen = get_db_session()
+            session = next(session_gen)
+            
+            try:
+                # Check if user already has a subscription
+                existing_subscription = self.db_service.get_user_subscription(user_id, session)
+                
+                if existing_subscription:
+                    # Update existing subscription
+                    existing_subscription.plan_id = plan_id
+                    existing_subscription.status = status
+                    if subscription_id:
+                        existing_subscription.lemon_squeezy_subscription_id = subscription_id
+                    
+                    # Update period end (monthly subscription)
+                    from datetime import datetime, timezone, timedelta
+                    now = datetime.now(timezone.utc)
+                    period_end = now + timedelta(days=30)
+                    existing_subscription.current_period_end = period_end
+                    
+                    session.flush()
+                    logger.info(f"Updated existing subscription for user {user_id} to plan {plan_id}")
+                else:
+                    # Create new subscription
+                    subscription = self.db_service.create_user_subscription(
+                        session=session,
+                        user_id=user_id,
+                        plan_id=plan_id,
+                        lemon_squeezy_subscription_id=subscription_id
+                    )
+                    logger.info(f"Created new subscription for user {user_id} with plan {plan_id}")
+                
+                # Ensure user has credits record and update it
+                user_credits = self.db_service.get_user_credits(user_id, session)
+                if user_credits:
+                    # Update existing credits
+                    user_credits.subscription_id = existing_subscription.id if existing_subscription else subscription.id
+                    # Add monthly credits based on plan
+                    plan_credits = self._get_plan_credits(plan_id)
+                    if plan_credits > 0:
+                        user_credits.add_credits(plan_credits, "subscription_purchase")
+                    session.flush()
+                else:
+                    # Create new credits record
+                    user_credits = self.db_service.create_user_credits(session, user_id, plan_id)
+                    subscription_obj = existing_subscription if existing_subscription else subscription
+                    user_credits.subscription_id = subscription_obj.id
+                    plan_credits = self._get_plan_credits(plan_id)
+                    if plan_credits > 0:
+                        user_credits.add_credits(plan_credits, "subscription_purchase")
+                    session.flush()
+                
+                session.commit()
+                return True
+                
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Error updating subscription for user {user_id}: {str(e)}")
+                return False
+            finally:
+                try:
+                    next(session_gen)
+                except StopIteration:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"Error in _update_user_subscription: {str(e)}")
+            return False
+    
+    def _get_plan_credits(self, plan_id: str) -> int:
+        """Get monthly credits for a plan"""
+        plan_credits_map = {
+            "free": 2,
+            "pro": 100,
+            "enterprise": 500,
+            "pro-yearly": 100
+        }
+        return plan_credits_map.get(plan_id, 0)
