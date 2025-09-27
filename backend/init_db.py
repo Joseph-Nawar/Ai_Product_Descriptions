@@ -85,7 +85,7 @@ def init_database():
             # Create user_subscriptions table
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS user_subscriptions (
-                    id SERIAL PRIMARY KEY,
+                    id VARCHAR(100) PRIMARY KEY,
                     user_id VARCHAR(50) NOT NULL,
                     plan_id VARCHAR(50) NOT NULL,
                     status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -112,7 +112,7 @@ def init_database():
                     total_credits_purchased INTEGER NOT NULL DEFAULT 0,
                     total_credits_used INTEGER NOT NULL DEFAULT 0,
                     total_credits_expired INTEGER NOT NULL DEFAULT 0,
-                    subscription_id INTEGER,
+                    subscription_id VARCHAR(100),
                     last_credit_refill TIMESTAMP WITH TIME ZONE,
                     next_credit_refill TIMESTAMP WITH TIME ZONE,
                     credits_used_this_period INTEGER NOT NULL DEFAULT 0,
@@ -131,7 +131,7 @@ def init_database():
                 CREATE TABLE IF NOT EXISTS transactions (
                     id SERIAL PRIMARY KEY,
                     user_id VARCHAR(50) NOT NULL,
-                    subscription_id INTEGER,
+                    subscription_id VARCHAR(100),
                     lemon_squeezy_order_id VARCHAR(100),
                     lemon_squeezy_order_number VARCHAR(100),
                     amount DECIMAL(10,2) NOT NULL,
