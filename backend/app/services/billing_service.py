@@ -133,4 +133,11 @@ class BillingService:
     
     def _map_variant_id_to_plan(self, variant_id: str) -> str:
         """Map Lemon Squeezy variant_id to internal plan name"""
-        return self.variant_to_plan.get(variant_id, "free")
+        # Convert variant_id to string to ensure consistent comparison
+        variant_id_str = str(variant_id)
+        print(f"🔧 Mapping variant_id: {variant_id_str} (type: {type(variant_id)})")
+        print(f"🔧 Available mappings: {self.variant_to_plan}")
+        
+        plan = self.variant_to_plan.get(variant_id_str, "free")
+        print(f"🔧 Mapped to plan: {plan}")
+        return plan

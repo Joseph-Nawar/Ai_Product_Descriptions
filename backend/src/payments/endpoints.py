@@ -344,8 +344,9 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)):
         # Idempotent handle via billing service; process minimal state transitions
         BillingService(db).handle_webhook(event_id, payload_json)
 
-        # Continue to legacy processor for backward-compatible side-effects if any
-        result = await lemon_squeezy.process_webhook(payload=payload_str, signature=signature)
+        # Note: Removed legacy processor to avoid database session conflicts
+        # The BillingService handles all webhook processing now
+        result = {"success": True, "message": "Webhook processed by BillingService"}
         
         if result["success"]:
             security_service.log_audit_event(

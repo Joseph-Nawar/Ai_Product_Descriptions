@@ -715,19 +715,22 @@ class LemonSqueezyService:
         if not variant_id:
             return None
         
+        # Convert variant_id to string to ensure consistent comparison
+        variant_id_str = str(variant_id)
+        
         # Debug: Log the current plan_to_variant mapping
         logger.info(f"🔍 Current plan_to_variant mapping: {self.plan_to_variant}")
         
         # Reverse lookup from plan_to_variant mapping
-        variant_to_plan = {v: k for k, v in self.plan_to_variant.items()}
+        variant_to_plan = {str(v): k for k, v in self.plan_to_variant.items() if v}
         logger.info(f"🔍 Reversed variant_to_plan mapping: {variant_to_plan}")
         
-        plan_id = variant_to_plan.get(variant_id)
+        plan_id = variant_to_plan.get(variant_id_str)
         
         if plan_id:
-            logger.info(f"✅ Mapped variant_id {variant_id} to plan {plan_id}")
+            logger.info(f"✅ Mapped variant_id {variant_id_str} to plan {plan_id}")
         else:
-            logger.warning(f"❌ Unknown variant_id: {variant_id}")
+            logger.warning(f"❌ Unknown variant_id: {variant_id_str}")
             logger.warning(f"Available variant IDs: {list(variant_to_plan.keys())}")
         
         return plan_id
