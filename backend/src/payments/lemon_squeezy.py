@@ -701,14 +701,20 @@ class LemonSqueezyService:
         if not variant_id:
             return None
         
+        # Debug: Log the current plan_to_variant mapping
+        logger.info(f"🔍 Current plan_to_variant mapping: {self.plan_to_variant}")
+        
         # Reverse lookup from plan_to_variant mapping
         variant_to_plan = {v: k for k, v in self.plan_to_variant.items()}
+        logger.info(f"🔍 Reversed variant_to_plan mapping: {variant_to_plan}")
+        
         plan_id = variant_to_plan.get(variant_id)
         
         if plan_id:
-            logger.info(f"Mapped variant_id {variant_id} to plan {plan_id}")
+            logger.info(f"✅ Mapped variant_id {variant_id} to plan {plan_id}")
         else:
-            logger.warning(f"Unknown variant_id: {variant_id}")
+            logger.warning(f"❌ Unknown variant_id: {variant_id}")
+            logger.warning(f"Available variant IDs: {list(variant_to_plan.keys())}")
         
         return plan_id
     
@@ -809,12 +815,38 @@ class LemonSqueezyService:
             order_id = order_data.get("id")
             variant_id = attributes.get("variant_id")
             
-            # Get custom data - this contains the actual user_id
-            custom_data = attributes.get("checkout_data", {}).get("custom", {})
-            user_id = custom_data.get("user_id")
+            # Get custom data - try multiple possible locations
+            user_id = None
+            
+            # Try checkout_data.custom.user_id first
+            checkout_data = attributes.get("checkout_data", {})
+            if checkout_data:
+                custom_data = checkout_data.get("custom", {})
+                user_id = custom_data.get("user_id")
+                logger.info(f"🔍 Found user_id in checkout_data.custom: {user_id}")
+            
+            # Try order_data.custom.user_id (alternative structure)
+            if not user_id:
+                order_custom = order_data.get("custom", {})
+                user_id = order_custom.get("user_id")
+                logger.info(f"🔍 Found user_id in order_data.custom: {user_id}")
+            
+            # Try attributes.custom.user_id (another alternative)
+            if not user_id:
+                attrs_custom = attributes.get("custom", {})
+                user_id = attrs_custom.get("user_id")
+                logger.info(f"🔍 Found user_id in attributes.custom: {user_id}")
+            
+            # Fallback: try to extract from email if available
+            if not user_id:
+                email = attributes.get("user_email") or attributes.get("email") or order_data.get("user_email")
+                if email and "@" in email:
+                    user_id = email.split("@")[0]
+                    logger.info(f"🔍 Extracted user_id from email: {user_id}")
             
             if not user_id:
-                logger.error(f"No user_id found in custom data for order {order_id}")
+                logger.error(f"No user_id found in any location for order {order_id}")
+                logger.error(f"Available data keys: order_data={list(order_data.keys())}, attributes={list(attributes.keys())}")
                 return {"status": "error", "reason": "No user_id in custom data"}
             
             # Map variant_id to plan

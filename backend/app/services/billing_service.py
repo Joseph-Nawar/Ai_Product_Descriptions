@@ -101,10 +101,35 @@ class BillingService:
             if sub:
                 subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.canceled)
         elif etype in {"order_created", "order_refunded", "payment_success", "payment_refunded"}:
+            print(f"🎯 BillingService handling {etype} event for user {user_id}")
             amount_cents = attrs.get("total") or attrs.get("amount") or 0
             amount = (amount_cents or 0) / 100
             currency = (attrs.get("currency") or "USD").upper()
             provider_ref = data.get("id") or attrs.get("order_id") or meta.get("event_id")
+            
+            # For order_created events, also try to update subscription
+            if etype == "order_created":
+                variant_id = attrs.get("variant_id")
+                if variant_id:
+                    plan = self._map_variant_id_to_plan(str(variant_id))
+                    print(f"🎯 BillingService: Mapped variant_id {variant_id} to plan {plan}")
+                    
+                    if plan != "free":  # Only update if it's a paid plan
+                        print(f"🎯 BillingService: Updating subscription for user {user_id} to plan {plan}")
+                        subscription_repo.upsert_subscription(
+                            self.db,
+                            user_id=user_id,
+                            plan=plan,
+                            status=SubscriptionStatus.active,
+                            current_period_end=None,  # One-time purchase, no recurring
+                            customer_id=provider_ref,
+                        )
+                        print(f"✅ BillingService: Updated subscription for user {user_id}")
+                        
+                        # Commit the transaction
+                        self.db.commit()
+                        print(f"✅ BillingService: Committed subscription update")
+            
             if provider_ref and amount:
                 transaction_repo.record_payment(
                     self.db,
