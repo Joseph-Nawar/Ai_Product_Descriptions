@@ -248,6 +248,9 @@ async def create_checkout_session(
 @router.post("/webhook")
 async def handle_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle Lemon Squeezy webhook events with enhanced security"""
+    print(f"🎯 WEBHOOK RECEIVED: {request.method} {request.url}")
+    print(f"🎯 WEBHOOK HEADERS: {dict(request.headers)}")
+    
     client_info = get_client_info(request)
     
     # Check rate limits for webhooks
