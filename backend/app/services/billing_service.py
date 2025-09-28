@@ -45,7 +45,7 @@ class BillingService:
         email = attrs.get("user_email") or attrs.get("email")
         user_repo.get_or_create_user(self.db, user_id, email=email)
 
-        if etype in {"subscription_created", "subscription_updated"}:
+        if etype in {"subscription_created", "subscription_updated", "subscription_resumed", "subscription_unpaused", "subscription_plan_changed"}:
             # Get plan from custom data first, then map variant_id to plan name
             plan = custom.get("plan_id")
             if not plan:
@@ -100,6 +100,21 @@ class BillingService:
             sub = subscription_repo.get_by_user(self.db, user_id)
             if sub:
                 subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.canceled)
+        elif etype in {"subscription_paused"}:
+            sub = subscription_repo.get_by_user(self.db, user_id)
+            if sub:
+                subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.paused)
+        elif etype in {"subscription_payment_failed"}:
+            # Handle failed payment - could pause subscription or send notification
+            print(f"🎯 BillingService: Subscription payment failed for user {user_id}")
+        elif etype in {"subscription_payment_success", "subscription_payment_recovered"}:
+            # Handle successful payment - ensure subscription is active
+            sub = subscription_repo.get_by_user(self.db, user_id)
+            if sub:
+                subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.active)
+        elif etype in {"subscription_payment_refunded"}:
+            # Handle refunded payment - could downgrade subscription
+            print(f"🎯 BillingService: Subscription payment refunded for user {user_id}")
         elif etype in {"order_created", "order_refunded", "payment_success", "payment_refunded"}:
             print(f"🎯 BillingService handling {etype} event for user {user_id}")
             amount_cents = attrs.get("total") or attrs.get("amount") or 0

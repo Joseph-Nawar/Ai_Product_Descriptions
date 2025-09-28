@@ -14,6 +14,7 @@ class SubscriptionStatus(PyEnum):
     expired = "expired"
     trialing = "trialing"
     inactive = "inactive"
+    paused = "paused"
 
 
 class Subscription(Base):
