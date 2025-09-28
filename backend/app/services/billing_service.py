@@ -22,10 +22,27 @@ class BillingService:
         print(f"🎯 BillingService: Processing webhook event_id={event_id}")
         print(f"🎯 BillingService: Event data: {event}")
         
-        # idempotency
-        if not webhook_repo.record_event(self.db, event_id):
-            print(f"🎯 BillingService: Event {event_id} already processed, skipping")
-            return
+        # Check if event was already processed, but don't skip if subscription doesn't exist
+        try:
+            webhook_repo.record_event(self.db, event_id)
+            print(f"🎯 BillingService: Event {event_id} is new, processing...")
+        except Exception as e:
+            print(f"🎯 BillingService: Event {event_id} already exists in database")
+            # Check if user actually has a subscription - if not, process anyway
+            meta = event.get("meta", {})
+            custom_data = meta.get("custom_data", {})
+            user_id = custom_data.get("user_id")
+            
+            if user_id:
+                existing_sub = subscription_repo.get_by_user(self.db, user_id)
+                if existing_sub and existing_sub.plan != "free":
+                    print(f"🎯 BillingService: User {user_id} already has subscription {existing_sub.plan}, skipping")
+                    return
+                else:
+                    print(f"🎯 BillingService: User {user_id} has no subscription or is on free plan, processing anyway...")
+            else:
+                print(f"🎯 BillingService: No user_id found, skipping")
+                return
 
         meta = event.get("meta", {})
         etype = meta.get("event_name", "")
