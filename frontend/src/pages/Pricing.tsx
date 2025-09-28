@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePaymentContext } from '../contexts/PaymentContext';
 import { PricingPlans } from '../components/PricingPlans';
@@ -9,6 +9,23 @@ export default function Pricing() {
   const { t } = useTranslation();
   const { payment } = usePaymentContext();
   const navigate = useNavigate();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await payment.refreshPaymentData();
+    } catch (error) {
+      console.error('Failed to refresh payment data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Auto-refresh when component mounts (useful after returning from payment)
+  useEffect(() => {
+    handleRefresh();
+  }, []); // Empty dependency array means this runs once on mount
 
   return (
     <div className="mx-auto max-w-7xl p-4 space-y-12 animate-fade-in">
@@ -35,33 +52,42 @@ export default function Pricing() {
         />
       </section>
 
-      {/* Current Status - Only show if user has a subscription */}
-      {payment.currentSubscription && (
-        <section className="animate-slide-in" style={{ animationDelay: '300ms' }}>
-          <div className="bg-gradient-to-r from-emerald-500/10 to-primary/10 border border-emerald-500/20 rounded-xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  Current Plan: {payment.currentSubscription?.plan?.name || 'Free Plan'}
-                </h3>
-                <p className="text-gray-400">
-                  Status: <span className="text-emerald-400 font-medium">
-                    {payment.currentSubscription?.status === 'active' ? 'Active' : 
-                     payment.currentSubscription?.status === 'cancelled' ? 'Cancelled' : 
-                     payment.currentSubscription?.status || 'Unknown'}
-                  </span>
-                </p>
-              </div>
+      {/* Current Status - Show for all users */}
+      <section className="animate-slide-in" style={{ animationDelay: '300ms' }}>
+        <div className="bg-gradient-to-r from-emerald-500/10 to-primary/10 border border-emerald-500/20 rounded-xl p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-2">
+                Current Plan: {payment.currentSubscription?.plan?.name || 'Free Plan'}
+              </h3>
+              <p className="text-gray-400">
+                Status: <span className="text-emerald-400 font-medium">
+                  {payment.currentSubscription?.status === 'active' ? 'Active' : 
+                   payment.currentSubscription?.status === 'cancelled' ? 'Cancelled' : 
+                   payment.currentSubscription?.status || 'Free'}
+                </span>
+              </p>
+            </div>
+            <div className="flex gap-2">
               <Button
-                onClick={() => navigate('/pricing')}
+                onClick={handleRefresh}
                 variant="secondary"
+                disabled={isRefreshing}
               >
-                Manage Subscription
+                {isRefreshing ? 'Refreshing...' : 'Refresh Status'}
               </Button>
+              {payment.currentSubscription && (
+                <Button
+                  onClick={() => navigate('/pricing')}
+                  variant="secondary"
+                >
+                  Manage Subscription
+                </Button>
+              )}
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* FAQ Section */}
       <section className="animate-slide-in" style={{ animationDelay: '400ms' }}>
