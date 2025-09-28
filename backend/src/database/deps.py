@@ -63,23 +63,33 @@ def get_db() -> Generator[Session, None, None]:
     
     try:
         yield db
-        # Only commit if the session is not in a prepared state
-        if not db.in_transaction() or db.get_transaction().is_active:
+        # Only commit if there's no active transaction
+        if not db.in_transaction() or not db.get_transaction().is_active:
             db.commit()
             logger.debug("Database session committed successfully")
     except Exception as e:
-        # Only rollback if the session is active
-        if db.is_active:
-            db.rollback()
+        # Only rollback if the session is active and not already rolled back
+        if db.is_active and not db.in_transaction():
+            try:
+                db.rollback()
+                logger.debug("Database session rolled back successfully")
+            except Exception as rollback_error:
+                logger.error(f"Error during rollback: {str(rollback_error)}")
         logger.error(f"Database session error, rolling back: {str(e)}")
         raise
     finally:
         # Only close if the session is not already closed
         if db.is_active:
-            db.close()
-        logger.debug("Database session closed")
+            try:
+                db.close()
+                logger.debug("Database session closed")
+            except Exception as close_error:
+                logger.error(f"Error closing session: {str(close_error)}")
         # Remove the session from the scoped session registry
-        session_factory.remove()
+        try:
+            session_factory.remove()
+        except Exception as remove_error:
+            logger.error(f"Error removing session from registry: {str(remove_error)}")
 
 def get_db_session() -> Generator[Session, None, None]:
     """
