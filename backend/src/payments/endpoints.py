@@ -441,6 +441,21 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
             from src.models.payment_models import UserSubscription
             all_subs = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
             logger.info(f"🔍 All subscriptions for user {user_id}: {[{'id': sub.id, 'plan_id': sub.plan_id, 'status': sub.status} for sub in all_subs]}")
+            
+            # Let's also check if there are any subscriptions at all in the database
+            total_subs = db.query(UserSubscription).count()
+            logger.info(f"🔍 Total subscriptions in database: {total_subs}")
+            
+            # Let's check the exact query being used
+            query = db.query(UserSubscription).filter(UserSubscription.user_id == user_id)
+            logger.info(f"🔍 Query SQL: {query}")
+            
+            # Let's also check if there's a database connection issue
+            try:
+                db.execute("SELECT 1")
+                logger.info("🔍 Database connection is working")
+            except Exception as e:
+                logger.error(f"🔍 Database connection error: {str(e)}")
         
         if not subscription:
             # User has no subscription - return free tier details
