@@ -1212,7 +1212,9 @@ async def health():
 @app.websocket("/ws/payments")
 async def websocket_payments(websocket: WebSocket):
     """WebSocket endpoint for payment notifications"""
+    logging.info("WebSocket connection attempt received")
     await websocket.accept()
+    logging.info("WebSocket connection accepted")
     try:
         while True:
             # Keep connection alive and send periodic heartbeats
