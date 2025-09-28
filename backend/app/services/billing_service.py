@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from typing import Dict, Any
 
@@ -10,6 +11,12 @@ from app.repos import user_repo, subscription_repo, transaction_repo, webhook_re
 class BillingService:
     def __init__(self, db: Session):
         self.db = db
+        # Map variant IDs to plan names (from environment variables)
+        self.variant_to_plan = {
+            os.getenv("LEMON_SQUEEZY_VARIANT_ID_PRO", "1013286"): "pro",
+            os.getenv("LEMON_SQUEEZY_VARIANT_ID_ENTERPRISE", "1013276"): "enterprise", 
+            os.getenv("LEMON_SQUEEZY_VARIANT_ID_YEARLY", "1013282"): "pro-yearly"
+        }
 
     def handle_webhook(self, event_id: str, event: Dict[str, Any]) -> None:
         # idempotency
@@ -39,7 +46,23 @@ class BillingService:
         user_repo.get_or_create_user(self.db, user_id, email=email)
 
         if etype in {"subscription_created", "subscription_updated"}:
-            plan = str(custom.get("plan_id") or attrs.get("variant_id") or "")
+            # Get plan from custom data first, then map variant_id to plan name
+            plan = custom.get("plan_id")
+            if not plan:
+                variant_id = attrs.get("variant_id")
+                if variant_id:
+                    # Map variant_id to plan name
+                    plan = self._map_variant_id_to_plan(variant_id)
+                    print(f"🔧 Mapped variant_id {variant_id} to plan: {plan}")
+                else:
+                    print(f"⚠️  No variant_id found in webhook data")
+            else:
+                print(f"✅ Using plan from custom data: {plan}")
+            
+            if not plan:
+                plan = "free"  # Default to free plan if no plan found
+                print(f"⚠️  Defaulting to free plan")
+            
             status_map = {
                 "active": SubscriptionStatus.active,
                 "on_trial": SubscriptionStatus.trialing,
@@ -67,6 +90,12 @@ class BillingService:
                 current_period_end=period_end,
                 customer_id=customer_id,
             )
+            
+            print(f"✅ Updated subscription for user {user_id}: plan={plan}, status={status}")
+            
+            # Commit the transaction to ensure subscription update is persisted
+            self.db.commit()
+            print(f"✅ Committed subscription update to database")
         elif etype in {"subscription_cancelled", "subscription_expired"}:
             sub = subscription_repo.get_by_user(self.db, user_id)
             if sub:
@@ -84,3 +113,7 @@ class BillingService:
                     amount=amount,
                     currency=currency,
                 )
+    
+    def _map_variant_id_to_plan(self, variant_id: str) -> str:
+        """Map Lemon Squeezy variant_id to internal plan name"""
+        return self.variant_to_plan.get(variant_id, "free")

@@ -33,14 +33,18 @@ def upsert_subscription(
         )
         db.add(sub)
         db.flush()
+        print(f"✅ Created new subscription for user {user_id}: plan={plan}")
         return sub
-    sub.plan = plan
-    sub.status = status
-    sub.current_period_end = current_period_end
-    if customer_id:
-        sub.lemon_squeezy_customer_id = customer_id
-    db.flush()
-    return sub
+    else:
+        print(f"🔄 Updating existing subscription for user {user_id}: {sub.plan} -> {plan}")
+        sub.plan = plan
+        sub.status = status
+        sub.current_period_end = current_period_end
+        if customer_id:
+            sub.lemon_squeezy_customer_id = customer_id
+        db.flush()
+        print(f"✅ Updated subscription for user {user_id}: plan={plan}, status={status}")
+        return sub
 
 
 def set_status(db: Session, sub_id: int, status: SubscriptionStatus) -> None:
