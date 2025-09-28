@@ -8,7 +8,7 @@ import asyncio
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from src.database.deps import get_db
 from fastapi.middleware.cors import CORSMiddleware
@@ -1208,6 +1208,25 @@ async def regenerate_description(item: Dict[str, Any], user = Depends(get_curren
 async def health():
     """Health check endpoint to verify the app is running"""
     return {"status": "ok"}
+
+@app.websocket("/ws/payments")
+async def websocket_payments(websocket: WebSocket):
+    """WebSocket endpoint for payment notifications"""
+    await websocket.accept()
+    try:
+        while True:
+            # Keep connection alive and send periodic heartbeats
+            await asyncio.sleep(30)  # Send heartbeat every 30 seconds
+            await websocket.send_json({
+                "type": "heartbeat",
+                "timestamp": time.time(),
+                "status": "connected"
+            })
+    except WebSocketDisconnect:
+        logging.info("WebSocket client disconnected")
+    except Exception as e:
+        logging.error(f"WebSocket error: {str(e)}")
+        await websocket.close()
 
 if __name__ == "__main__":
     import uvicorn

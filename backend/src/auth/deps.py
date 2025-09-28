@@ -12,7 +12,25 @@ async def get_authed_user_db(
     db: Session = Depends(get_db),
 ):
     """Verify Firebase token, ensure a User row exists, and provide both claims and ORM user."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔍 get_authed_user_db called - claims: {claims}")
     uid = claims.get("uid")
     email = claims.get("email")
-    user = user_repo.get_or_create_user(db, uid, email=email)
-    return {"claims": claims, "user": user}
+    logger.info(f"🔍 UID: {uid}, Email: {email}")
+    
+    try:
+        # Test database connection first
+        logger.info(f"🔍 Testing database connection...")
+        db.execute("SELECT 1")
+        logger.info(f"✅ Database connection successful")
+        
+        user = user_repo.get_or_create_user(db, uid, email=email)
+        logger.info(f"🔍 User created/retrieved: {user}")
+        return {"claims": claims, "user": user}
+    except Exception as e:
+        logger.error(f"❌ Error in get_authed_user_db: {str(e)}")
+        import traceback
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+        raise

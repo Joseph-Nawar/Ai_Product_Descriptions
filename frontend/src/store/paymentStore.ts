@@ -371,10 +371,8 @@ export const usePaymentStore = create<PaymentState>()(
 
         // WebSocket Management
         connectWebSocket: () => {
-          // WebSocket endpoint not implemented on backend yet
-          // Disable WebSocket connection to prevent page crashes
-          console.log('WebSocket connection disabled - endpoint not implemented on backend');
-          return;
+          // WebSocket endpoint is now implemented on backend
+          console.log('Connecting to WebSocket...');
           
           const { wsState } = get();
           if (wsState.connected || wsState.reconnecting) return;

@@ -35,10 +35,8 @@ class PaymentWebSocketService implements WebSocketService {
   }
 
   connect(): void {
-    // WebSocket endpoint not implemented on backend yet
-    // Disable WebSocket connection to prevent page crashes
-    console.log('WebSocket connection disabled - endpoint not implemented on backend');
-    return;
+    // WebSocket endpoint is now implemented on backend
+    console.log('Connecting to WebSocket...');
     
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;

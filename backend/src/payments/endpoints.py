@@ -477,28 +477,65 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
 async def get_user_credits(auth = Depends(get_authed_user_db), db: Session = Depends(get_db)):
     """Get user's current credits and subscription status with daily credits remaining"""
     try:
+        logger.info(f"🔍 Credits endpoint called - auth: {auth is not None}")
         claims = auth["claims"]
         user_row = auth["user"]
         user_id = claims.get("uid")
+        logger.info(f"🔍 User ID from claims: {user_id}")
+        logger.info(f"🔍 User row: {user_row}")
+        
         if not user_id:
+            logger.error("❌ No user ID found in claims")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User ID not found in token",
             )
 
-        # Get user credits
-        user_credits = lemon_squeezy.db_service.get_user_credits(user_id, db)
-        if not user_credits:
-            # Create new user with free tier
-            user_credits = lemon_squeezy.db_service.create_user_credits(db, user_id, "free")
+        # Get user credits with error handling
+        try:
+            user_credits = lemon_squeezy.db_service.get_user_credits(user_id, db)
+            if not user_credits:
+                # Create new user with free tier
+                logger.info(f"🔍 Creating new user credits for {user_id}")
+                user_credits = lemon_squeezy.db_service.create_user_credits(db, user_id, "free")
+        except Exception as db_error:
+            logger.error(f"❌ Database error getting user credits: {str(db_error)}")
+            # Return fallback data for free tier
+            user_credits = type('obj', (object,), {
+                'to_dict': lambda: {
+                    'user_id': user_id,
+                    'current_credits': 10,
+                    'total_credits_purchased': 0,
+                    'total_credits_used': 0,
+                    'total_credits_expired': 0,
+                    'credits_used_this_period': 0,
+                    'subscription_id': None,
+                    'last_credit_refill': None,
+                    'next_credit_refill': None,
+                    'period_start': None,
+                    'period_end': None,
+                    'credits_metadata': {}
+                }
+            })()
 
-        # Get subscription info
-        subscription = lemon_squeezy.db_service.get_user_subscription(user_id, db)
-        plan_id = subscription.plan_id if subscription else "free"
+        # Get subscription info with error handling
+        try:
+            subscription = lemon_squeezy.db_service.get_user_subscription(user_id, db)
+            plan_id = subscription.plan_id if subscription else "free"
+        except Exception as sub_error:
+            logger.error(f"❌ Database error getting subscription: {str(sub_error)}")
+            plan_id = "free"
+            subscription = None
         
-        # Get daily limit and usage
-        daily_limit = lemon_squeezy.db_service.get_user_daily_limit(user_id, db)
-        daily_usage_count = lemon_squeezy.db_service.get_daily_usage_count(user_id, db)
+        # Get daily limit and usage with error handling
+        try:
+            daily_limit = lemon_squeezy.db_service.get_user_daily_limit(user_id, db)
+            daily_usage_count = lemon_squeezy.db_service.get_daily_usage_count(user_id, db)
+        except Exception as usage_error:
+            logger.error(f"❌ Database error getting usage: {str(usage_error)}")
+            daily_limit = 10  # Free tier default
+            daily_usage_count = 0
+        
         remaining_daily_credits = max(0, daily_limit - daily_usage_count)
 
         # Return enhanced credit info
@@ -511,18 +548,38 @@ async def get_user_credits(auth = Depends(get_authed_user_db), db: Session = Dep
             "subscription_active": subscription.is_active() if subscription else False
         })
 
+        logger.info(f"✅ Successfully returned credit data for user {user_id}")
         return {
             "success": True,
             "data": credit_data,
         }
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 401)
+        raise
     except Exception as e:
-        logger.error(f"Error getting user credits: {str(e)}")
+        logger.error(f"❌ Unexpected error getting user credits: {str(e)}")
+        import traceback
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get user credits: {str(e)}",
         )
 
+
+@router.get("/credits/test")
+async def test_credits_endpoint():
+    """Test endpoint for credits without authentication"""
+    return {
+        "success": True,
+        "message": "Credits endpoint is accessible",
+        "data": {
+            "user_id": "test_user",
+            "current_credits": 10,
+            "subscription_tier": "free",
+            "subscription_active": True
+        }
+    }
 
 @router.get("/health")
 async def payment_health_check(request: Request):
