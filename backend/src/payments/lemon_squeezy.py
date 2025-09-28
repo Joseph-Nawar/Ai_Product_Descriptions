@@ -443,6 +443,12 @@ class LemonSqueezyService:
             return await self._handle_subscription_cancelled(data)
         elif event_type == WebhookEventType.SUBSCRIPTION_UPDATED:
             return await self._handle_subscription_updated(data)
+        elif event_type == WebhookEventType.ORDER_CREATED:
+            return await self._handle_order_created(data)
+        elif event_type == WebhookEventType.ORDER_REFUNDED:
+            return await self._handle_order_refunded(data)
+        elif event_type == WebhookEventType.PAYMENT_REFUNDED:
+            return await self._handle_payment_refunded(data)
         else:
             logger.warning(f"Unhandled webhook event type: {event_type}")
             return {"status": "ignored", "reason": "Unhandled event type"}
@@ -790,3 +796,95 @@ class LemonSqueezyService:
             "pro-yearly": 100
         }
         return plan_credits_map.get(plan_id, 0)
+    
+    async def _handle_order_created(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle order created event - this is the main event for successful payments"""
+        try:
+            logger.info("🎯 Processing order_created event")
+            
+            order_data = data.get("data", {})
+            attributes = order_data.get("attributes", {})
+            
+            # Extract order information
+            order_id = order_data.get("id")
+            variant_id = attributes.get("variant_id")
+            
+            # Get custom data - this contains the actual user_id
+            custom_data = attributes.get("checkout_data", {}).get("custom", {})
+            user_id = custom_data.get("user_id")
+            
+            if not user_id:
+                logger.error(f"No user_id found in custom data for order {order_id}")
+                return {"status": "error", "reason": "No user_id in custom data"}
+            
+            # Map variant_id to plan
+            plan_id = self._get_plan_from_variant_id(str(variant_id)) if variant_id else "pro"
+            
+            if not plan_id:
+                logger.error(f"Unknown variant_id: {variant_id}")
+                return {"status": "error", "reason": f"Unknown variant_id: {variant_id}"}
+            
+            logger.info(f"🎯 Order {order_id}: User {user_id}, Variant {variant_id} -> Plan {plan_id}")
+            
+            # Update user subscription
+            success = await self._update_user_subscription(user_id, plan_id, order_id)
+            
+            if success:
+                logger.info(f"✅ Successfully updated subscription for user {user_id} to plan {plan_id}")
+                return {"status": "success", "user_id": user_id, "plan": plan_id}
+            else:
+                logger.error(f"❌ Failed to update subscription for user {user_id}")
+                return {"status": "error", "reason": "Failed to update subscription"}
+                
+        except Exception as e:
+            logger.error(f"Error handling order_created event: {str(e)}")
+            return {"status": "error", "reason": str(e)}
+    
+    async def _handle_order_refunded(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle order refunded event"""
+        try:
+            logger.info("🎯 Processing order_refunded event")
+            
+            order_data = data.get("data", {})
+            attributes = order_data.get("attributes", {})
+            
+            # Extract order information
+            order_id = order_data.get("id")
+            
+            # Get custom data
+            custom_data = attributes.get("checkout_data", {}).get("custom", {})
+            user_id = custom_data.get("user_id")
+            
+            if not user_id:
+                logger.error(f"No user_id found in custom data for refunded order {order_id}")
+                return {"status": "error", "reason": "No user_id in custom data"}
+            
+            # For refunds, we might want to downgrade the user or handle credits
+            logger.info(f"🎯 Order {order_id} refunded for user {user_id}")
+            
+            # For now, just log the refund - you might want to implement downgrade logic
+            return {"status": "success", "user_id": user_id, "action": "refund_logged"}
+                
+        except Exception as e:
+            logger.error(f"Error handling order_refunded event: {str(e)}")
+            return {"status": "error", "reason": str(e)}
+    
+    async def _handle_payment_refunded(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle payment refunded event"""
+        try:
+            logger.info("🎯 Processing payment_refunded event")
+            
+            payment_data = data.get("data", {})
+            attributes = payment_data.get("attributes", {})
+            
+            # Extract payment information
+            payment_id = payment_data.get("id")
+            amount = float(attributes.get("total", 0)) / 100  # Convert from cents
+            
+            logger.info(f"🎯 Payment {payment_id} refunded for amount {amount}")
+            
+            return {"status": "success", "payment_id": payment_id, "amount": amount}
+                
+        except Exception as e:
+            logger.error(f"Error handling payment_refunded event: {str(e)}")
+            return {"status": "error", "reason": str(e)}

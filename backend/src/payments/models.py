@@ -36,6 +36,9 @@ class WebhookEventType(str, Enum):
     SUBSCRIPTION_UPDATED = "subscription_updated"
     SUBSCRIPTION_RESUMED = "subscription_resumed"
     SUBSCRIPTION_PAUSED = "subscription_paused"
+    ORDER_CREATED = "order_created"
+    ORDER_REFUNDED = "order_refunded"
+    PAYMENT_REFUNDED = "payment_refunded"
 
 
 @dataclass
