@@ -13,9 +13,9 @@ from .connection import get_engine
 
 logger = logging.getLogger(__name__)
 
-# Create a scoped session factory for thread-safe session management
+# Create a regular session factory for simpler session management
 def get_session_factory():
-    """Get thread-safe session factory"""
+    """Get session factory"""
     engine = get_engine()
     
     # For SQLite, use StaticPool with proper configuration
@@ -33,7 +33,7 @@ def get_session_factory():
             echo=False
         )
     
-    # Create scoped session factory for thread safety
+    # Create regular session factory (not scoped to avoid session state issues)
     session_factory = sessionmaker(
         bind=engine,
         autocommit=False,
@@ -41,7 +41,7 @@ def get_session_factory():
         expire_on_commit=False
     )
     
-    return scoped_session(session_factory)
+    return session_factory
 
 # Global scoped session factory
 _session_factory = None
@@ -63,14 +63,14 @@ def get_db() -> Generator[Session, None, None]:
     
     try:
         yield db
-        # Always try to commit - let SQLAlchemy handle the state
+        # Commit the session
         try:
             db.commit()
             logger.debug("Database session committed successfully")
         except Exception as commit_error:
             logger.warning(f"Commit failed (may be expected): {str(commit_error)}")
     except Exception as e:
-        # Always try to rollback on error
+        # Rollback on error
         try:
             db.rollback()
             logger.debug("Database session rolled back successfully")
@@ -79,17 +79,12 @@ def get_db() -> Generator[Session, None, None]:
         logger.error(f"Database session error: {str(e)}")
         raise
     finally:
-        # Always try to close the session
+        # Close the session
         try:
             db.close()
             logger.debug("Database session closed")
         except Exception as close_error:
             logger.warning(f"Close failed: {str(close_error)}")
-        # Always try to remove from registry
-        try:
-            session_factory.remove()
-        except Exception as remove_error:
-            logger.warning(f"Remove from registry failed: {str(remove_error)}")
 
 def get_db_session() -> Generator[Session, None, None]:
     """
