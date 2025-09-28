@@ -528,12 +528,23 @@ export const usePaymentStore = create<PaymentState>()(
         },
 
         refreshAll: async () => {
+          // Ensure authentication token is available before making API calls
+          const { getIdToken } = await import('../auth/token');
+          const token = await getIdToken();
+          
+          if (!token) {
+            console.warn('No authentication token available, skipping API calls');
+            return;
+          }
+          
+          // Add small delay between calls to prevent race conditions
           const promises = [
             // Only fetch subscription plans if not already cached
             // The PricingPlans component now uses TanStack Query for caching
             // get().fetchSubscriptionPlans(), // Commented out to prevent duplicate calls
             get().fetchCurrentSubscription(),
-            get().fetchCreditBalance(),
+            // Add small delay before credit balance call
+            new Promise(resolve => setTimeout(resolve, 100)).then(() => get().fetchCreditBalance()),
             // TODO: Endpoints not yet implemented. Commented out to prevent 404s and rate limiting.
             // get().fetchUsageStats(),
             // get().fetchPaymentHistory(1, true)
