@@ -14,12 +14,9 @@ def get_or_create_user(db: Session, uid: str, email: Optional[str] = None) -> Us
     if email:
         user = db.query(User).filter(User.email == email).first()
         if user:
-            # Update the user's ID to match the new UID if it's different
-            if user.id != uid:
-                print(f"🔄 Updating user ID from {user.id} to {uid} for email {email}")
-                user.id = uid
-                user.firebase_uid = uid
-                db.flush()
+            # Use the existing user instead of trying to update the ID
+            # This avoids foreign key constraint violations
+            print(f"🔄 Found existing user with email {email}, using ID: {user.id}")
             return user
     
     # Create new user if doesn't exist
@@ -47,11 +44,7 @@ def get_or_create_user(db: Session, uid: str, email: Optional[str] = None) -> Us
             if email:
                 user = db.query(User).filter(User.email == email).first()
                 if user:
-                    # Update the user's ID to match the new UID if it's different
-                    if user.id != uid:
-                        print(f"🔄 Updating user ID from {user.id} to {uid} for email {email}")
-                        user.id = uid
-                        user.firebase_uid = uid
-                        db.flush()
+                    # Use the existing user instead of trying to update the ID
+                    print(f"🔄 Found existing user with email {email}, using ID: {user.id}")
                     return user
         raise e
