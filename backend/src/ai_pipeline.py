@@ -185,8 +185,14 @@ def load_env(dry_run=False):
         print(f"💰 Daily cost limit: ${daily_limit}, Monthly: ${monthly_limit}")
         
         # Configure Gemini
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name)
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            print(f"✅ Gemini model '{model_name}' configured successfully")
+        except Exception as e:
+            print(f"❌ Failed to configure Gemini model: {str(e)}")
+            print(f"🔧 Check if the API key is valid and the model name '{model_name}' is correct")
+            model = None
     else:
         print(f"⚠️  No API key found - running in dry-run mode only")
         model = None
@@ -215,23 +221,23 @@ def call_gemini_generate(model, prompt, temperature=0.2, logger=None, cost_track
             candidate_count=1
         )
         
-        # Add safety settings - relaxed for non-English content
+        # Add safety settings - very relaxed for product descriptions
         safety_settings = [
             {
                 "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
+                "threshold": "BLOCK_NONE"  # Allow all content for product descriptions
             },
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH", 
-                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
+                "threshold": "BLOCK_NONE"  # Allow all content for product descriptions
             },
             {
                 "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
+                "threshold": "BLOCK_ONLY_HIGH"  # Keep some restriction for explicit content
             },
             {
                 "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_ONLY_HIGH"  # Relaxed from BLOCK_MEDIUM_AND_ABOVE
+                "threshold": "BLOCK_ONLY_HIGH"  # Keep some restriction for dangerous content
             }
         ]
         

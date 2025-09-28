@@ -212,6 +212,7 @@ async def startup_event():
             print(f"🤖 Model: {conf['model_name']} (Dry-run mode)")
             print(f"🌡️  Temperature: {conf['temperature']}")
             print("⚠️  Running in dry-run mode - API key not configured")
+            print("🔧 To fix: Set GEMINI_API_KEY environment variable with a valid API key")
         
         print("💳 Credit service initialized - rate limiting enabled")
         
@@ -616,6 +617,17 @@ async def generate_batch_json(request: Dict[str, Any], user = Depends(get_curren
                 
                 try:
                     logging.info(f"Generating content for language: {language_code}")
+                    
+                    # Check if model is available before making API call
+                    if model is None:
+                        errors.append({
+                            "row": idx,
+                            "id": row_dict.get("id", ""),
+                            "error": "AI model not initialized - check API key configuration"
+                        })
+                        logging.error(f"Model is None for product {row_dict.get('id', 'unknown')}")
+                        continue
+                    
                     # TEMPORARILY DISABLED FOR TESTING - rate_limit_api_call()  # Add rate limiting
                     ai_text, tokens_used, response_time = call_gemini_generate(
                         model=model,
@@ -910,6 +922,17 @@ async def generate_batch(file: UploadFile = File(...), audience: str = Form(...)
                 
                 # Build prompt and generate
                 prompt = build_gemini_prompt(row_dict)
+                
+                # Check if model is available before making API call
+                if model is None:
+                    errors.append({
+                        "row": idx,
+                        "id": row_dict.get("id", ""),
+                        "error": "AI model not initialized - check API key configuration"
+                    })
+                    logging.error(f"Model is None for product {row_dict.get('id', 'unknown')}")
+                    continue
+                
                 ai_text, tokens_used, response_time = call_gemini_generate(
                     model=model,
                     prompt=prompt,
