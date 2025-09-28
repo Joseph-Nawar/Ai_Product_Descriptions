@@ -194,7 +194,7 @@ class UserSubscription(Base):
             period_end = period_end.replace(tzinfo=timezone.utc)
         
         return (
-            self.status == SubscriptionStatus.ACTIVE and
+            self.status == "active" and
             period_end and period_end > now
         )
     

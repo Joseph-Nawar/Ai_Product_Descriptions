@@ -430,6 +430,11 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
         # Get subscription info
         subscription = lemon_squeezy.db_service.get_user_subscription(user_id, db)
         
+        # Add debugging information
+        logger.info(f"🔍 Subscription lookup for user {user_id}: found={subscription is not None}")
+        if subscription:
+            logger.info(f"🔍 Subscription details: plan_id={subscription.plan_id}, status={subscription.status}, is_active={subscription.is_active()}")
+        
         if not subscription:
             # User has no subscription - return free tier details
             # This should not happen if assign_free_plan_to_user is working correctly

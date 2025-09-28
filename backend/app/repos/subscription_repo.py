@@ -24,22 +24,29 @@ def upsert_subscription(
 ) -> Subscription:
     sub = get_by_user(db, user_id)
     if sub is None:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         sub = Subscription(
             user_id=user_id,
             plan=plan,
             status=status,
             current_period_end=current_period_end,
             lemon_squeezy_customer_id=customer_id,
+            created_at=now,
+            updated_at=now,
         )
         db.add(sub)
         db.flush()
         print(f"✅ Created new subscription for user {user_id}: plan={plan}")
         return sub
     else:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         print(f"🔄 Updating existing subscription for user {user_id}: {sub.plan} -> {plan}")
         sub.plan = plan
         sub.status = status
         sub.current_period_end = current_period_end
+        sub.updated_at = now
         if customer_id:
             sub.lemon_squeezy_customer_id = customer_id
         db.flush()

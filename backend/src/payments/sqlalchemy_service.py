@@ -190,16 +190,24 @@ class SQLAlchemyPaymentService:
                 session.close()
     
     def get_user_subscription(self, user_id: str, session: Session = None) -> Optional[UserSubscription]:
-        """Get user's current subscription"""
+        """Get user's current subscription - returns the most recent subscription regardless of status"""
         session, created = self._ensure_session(session)
         
         try:
-            return session.query(UserSubscription).filter(
-                and_(
-                    UserSubscription.user_id == user_id,
-                    UserSubscription.status == SubscriptionStatus.ACTIVE
-                )
-            ).first()
+            # Get the most recent subscription for the user, regardless of status
+            # This ensures we can see subscriptions that were just updated
+            subscription = session.query(UserSubscription).filter(
+                UserSubscription.user_id == user_id
+            ).order_by(UserSubscription.updated_at.desc()).first()
+            
+            # If no subscription found, return None
+            if not subscription:
+                return None
+                
+            # Log the subscription details for debugging
+            self.logger.info(f"Found subscription for user {user_id}: plan={subscription.plan_id}, status={subscription.status}")
+            
+            return subscription
         finally:
             if created:
                 session.close()
@@ -219,7 +227,7 @@ class SQLAlchemyPaymentService:
             id=f"sub_{user_id}_{int(now.timestamp())}",
             user_id=user_id,
             plan_id=plan_id,
-            status=SubscriptionStatus.ACTIVE,
+            status="active",  # Use string value instead of enum
             current_period_start=now,
             current_period_end=period_end,
             lemon_squeezy_subscription_id=lemon_squeezy_subscription_id
@@ -266,7 +274,7 @@ class SQLAlchemyPaymentService:
             if subscription:
                 # Update existing subscription
                 subscription.plan_id = new_plan_id
-                subscription.status = SubscriptionStatus.ACTIVE
+                subscription.status = "active"  # Use string value instead of enum
                 
                 # Update period end
                 from datetime import datetime, timezone, timedelta

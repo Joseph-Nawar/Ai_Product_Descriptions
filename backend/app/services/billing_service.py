@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.subscription import SubscriptionStatus
 from app.repos import user_repo, subscription_repo, transaction_repo, webhook_repo
+from src.payments.sqlalchemy_service import SQLAlchemyPaymentService
 
 
 class BillingService:
@@ -17,6 +18,8 @@ class BillingService:
             os.getenv("LEMON_SQUEEZY_VARIANT_ID_ENTERPRISE", "1013276"): "enterprise", 
             os.getenv("LEMON_SQUEEZY_VARIANT_ID_YEARLY", "1013282"): "pro-yearly"
         }
+        # Initialize SQLAlchemy service for UserSubscription updates
+        self.sqlalchemy_service = SQLAlchemyPaymentService()
 
     def handle_webhook(self, event_id: str, event: Dict[str, Any]) -> None:
         print(f"🎯 BillingService: Processing webhook event_id={event_id}")
@@ -123,8 +126,8 @@ class BillingService:
             # Get customer ID from webhook data
             customer_id = attrs.get("customer_id") or attrs.get("user_email")
             
-            subscription_repo.upsert_subscription(
-                self.db,
+            # Update both subscription tables for consistency
+            self._update_subscription_tables(
                 user_id=user_id,
                 plan=plan,
                 status=status,
@@ -150,9 +153,39 @@ class BillingService:
             print(f"🎯 BillingService: Subscription payment failed for user {user_id}")
         elif etype in {"subscription_payment_success", "subscription_payment_recovered"}:
             # Handle successful payment - ensure subscription is active
-            sub = subscription_repo.get_by_user(self.db, user_id)
-            if sub:
-                subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.active)
+            # For payment success events, we need to get the plan from the subscription data
+            # Check if this event contains subscription information
+            if has_subscription_data:
+                # Get plan from variant_id if available
+                variant_id = attrs.get("variant_id")
+                if variant_id:
+                    plan = self._map_variant_id_to_plan(variant_id)
+                    print(f"🔧 Payment success: Mapped variant_id {variant_id} to plan: {plan}")
+                else:
+                    # Try to get plan from existing subscription
+                    sub = subscription_repo.get_by_user(self.db, user_id)
+                    if sub and sub.plan != "free":
+                        plan = sub.plan
+                        print(f"🔧 Payment success: Using existing plan {plan}")
+                    else:
+                        plan = "free"
+                        print(f"⚠️  Payment success: No variant_id or existing plan, defaulting to free")
+                
+                # Update subscription with correct plan
+                self._update_subscription_tables(
+                    user_id=user_id,
+                    plan=plan,
+                    status=SubscriptionStatus.active,
+                    current_period_end=attrs.get("renews_at") or attrs.get("ends_at"),
+                    customer_id=attrs.get("customer_id") or attrs.get("user_email"),
+                )
+                print(f"✅ Updated subscription for user {user_id}: plan={plan}, status=active")
+                self.db.commit()
+            else:
+                # Fallback: just ensure existing subscription is active
+                sub = subscription_repo.get_by_user(self.db, user_id)
+                if sub:
+                    subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.active)
         elif etype in {"subscription_payment_refunded"}:
             # Handle refunded payment - could downgrade subscription
             print(f"🎯 BillingService: Subscription payment refunded for user {user_id}")
@@ -185,3 +218,71 @@ class BillingService:
         plan = self.variant_to_plan.get(variant_id_str, "free")
         print(f"🔧 Mapped to plan: {plan}")
         return plan
+    
+    def _update_subscription_tables(self, user_id: str, plan: str, status, current_period_end, customer_id: str = None):
+        """Update both Subscription and UserSubscription tables for consistency"""
+        try:
+            # Update the main Subscription table (used by billing service)
+            subscription_repo.upsert_subscription(
+                self.db,
+                user_id=user_id,
+                plan=plan,
+                status=status,
+                current_period_end=current_period_end,
+                customer_id=customer_id,
+            )
+            print(f"✅ Updated Subscription table for user {user_id}: plan={plan}")
+            
+            # Update the UserSubscription table (used by payment endpoints)
+            # Map plan names to plan IDs
+            plan_id_mapping = {
+                "free": "free",
+                "pro": "pro", 
+                "enterprise": "enterprise",
+                "pro-yearly": "pro-yearly"
+            }
+            plan_id = plan_id_mapping.get(plan, "free")
+            
+            # Update or create UserSubscription
+            existing_sub = self.sqlalchemy_service.get_user_subscription(user_id, self.db)
+            if existing_sub:
+                # Update existing subscription
+                existing_sub.plan_id = plan_id
+                # Map status to UserSubscription status values
+                status_mapping = {
+                    "active": "active",
+                    "past_due": "inactive", 
+                    "canceled": "cancelled",
+                    "expired": "expired",
+                    "trialing": "trial",
+                    "inactive": "inactive",
+                    "paused": "paused"
+                }
+                mapped_status = status_mapping.get(
+                    status.value if hasattr(status, 'value') else str(status), 
+                    "active"
+                )
+                existing_sub.status = mapped_status
+                if current_period_end:
+                    existing_sub.current_period_end = current_period_end
+                if customer_id:
+                    existing_sub.lemon_squeezy_customer_id = customer_id
+                self.db.flush()
+                print(f"✅ Updated UserSubscription table for user {user_id}: plan_id={plan_id}, status={mapped_status}")
+            else:
+                # Create new subscription
+                from datetime import datetime, timezone, timedelta
+                now = datetime.now(timezone.utc)
+                period_end = current_period_end or (now + timedelta(days=30))
+                
+                self.sqlalchemy_service.create_user_subscription(
+                    self.db,
+                    user_id=user_id,
+                    plan_id=plan_id,
+                    lemon_squeezy_subscription_id=None
+                )
+                print(f"✅ Created new UserSubscription for user {user_id}: plan_id={plan_id}")
+                
+        except Exception as e:
+            print(f"❌ Error updating subscription tables for user {user_id}: {str(e)}")
+            raise
