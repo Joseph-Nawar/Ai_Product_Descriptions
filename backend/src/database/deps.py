@@ -63,33 +63,33 @@ def get_db() -> Generator[Session, None, None]:
     
     try:
         yield db
-        # Only commit if there's no active transaction
-        if not db.in_transaction() or not db.get_transaction().is_active:
+        # Always try to commit - let SQLAlchemy handle the state
+        try:
             db.commit()
             logger.debug("Database session committed successfully")
+        except Exception as commit_error:
+            logger.warning(f"Commit failed (may be expected): {str(commit_error)}")
     except Exception as e:
-        # Only rollback if the session is active and not already rolled back
-        if db.is_active and not db.in_transaction():
-            try:
-                db.rollback()
-                logger.debug("Database session rolled back successfully")
-            except Exception as rollback_error:
-                logger.error(f"Error during rollback: {str(rollback_error)}")
-        logger.error(f"Database session error, rolling back: {str(e)}")
+        # Always try to rollback on error
+        try:
+            db.rollback()
+            logger.debug("Database session rolled back successfully")
+        except Exception as rollback_error:
+            logger.warning(f"Rollback failed: {str(rollback_error)}")
+        logger.error(f"Database session error: {str(e)}")
         raise
     finally:
-        # Only close if the session is not already closed
-        if db.is_active:
-            try:
-                db.close()
-                logger.debug("Database session closed")
-            except Exception as close_error:
-                logger.error(f"Error closing session: {str(close_error)}")
-        # Remove the session from the scoped session registry
+        # Always try to close the session
+        try:
+            db.close()
+            logger.debug("Database session closed")
+        except Exception as close_error:
+            logger.warning(f"Close failed: {str(close_error)}")
+        # Always try to remove from registry
         try:
             session_factory.remove()
         except Exception as remove_error:
-            logger.error(f"Error removing session from registry: {str(remove_error)}")
+            logger.warning(f"Remove from registry failed: {str(remove_error)}")
 
 def get_db_session() -> Generator[Session, None, None]:
     """
