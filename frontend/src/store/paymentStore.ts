@@ -182,6 +182,18 @@ export const usePaymentStore = create<PaymentState>()(
               subscriptionLoading: false 
             });
           } catch (error) {
+            console.error('Subscription fetch error:', error);
+            // Handle authentication errors specifically
+            if (error && typeof error === 'object' && 'response' in error) {
+              const axiosError = error as any;
+              if (axiosError.response?.status === 401) {
+                set({ 
+                  subscriptionError: 'Authentication required. Please sign in again.',
+                  subscriptionLoading: false 
+                });
+                return;
+              }
+            }
             // For other errors (500, network issues, etc.), set the error
             set({ 
               subscriptionError: error instanceof Error ? error.message : 'Failed to fetch subscription',
@@ -207,6 +219,18 @@ export const usePaymentStore = create<PaymentState>()(
               set({ showCreditWarning: true });
             }
           } catch (error) {
+            console.error('Credit balance fetch error:', error);
+            // Handle authentication errors specifically
+            if (error && typeof error === 'object' && 'response' in error) {
+              const axiosError = error as any;
+              if (axiosError.response?.status === 401) {
+                set({ 
+                  creditError: 'Authentication required. Please sign in again.',
+                  creditLoading: false 
+                });
+                return;
+              }
+            }
             set({ 
               creditError: error instanceof Error ? error.message : 'Failed to fetch credit balance',
               creditLoading: false 

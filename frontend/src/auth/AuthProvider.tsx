@@ -45,11 +45,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return onIdTokenChanged(auth, async (u: User | null) => {
       setUser(u);
       if (u) {
-        const t = await u.getIdToken();
-        setIdToken(t);
-        
-        // Initialize payment data when user signs in
         try {
+          const t = await u.getIdToken();
+          setIdToken(t);
+          
+          // Wait a bit to ensure token is properly set before making API calls
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Initialize payment data when user signs in
           await refreshAll();
           connectWebSocket();
         } catch (error) {

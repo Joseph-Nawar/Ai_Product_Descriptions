@@ -13,7 +13,8 @@ export const getIdToken = async (): Promise<string | null> => {
   }
   
   try {
-    const token = await user.getIdToken();
+    // Force refresh the token to ensure it's valid
+    const token = await user.getIdToken(true);
     if (!token || token.split('.').length !== 3) {
       console.error('Invalid token format:', token);
       return null;

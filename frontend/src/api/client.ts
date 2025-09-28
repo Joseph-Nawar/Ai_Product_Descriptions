@@ -28,7 +28,16 @@ api.interceptors.request.use(async (config) => {
     }
     config.headers.Authorization = `Bearer ${token}`;
   } else {
-    console.warn('⚠️ No auth token available for request');
+    console.warn('⚠️ No auth token available for request, retrying...');
+    // Add a small delay and retry once to handle race conditions
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const retryToken = await getIdToken();
+    if (retryToken) {
+      console.log('✅ Token retrieved on retry');
+      config.headers.Authorization = `Bearer ${retryToken}`;
+    } else {
+      console.error('❌ Still no token available after retry');
+    }
   }
   return config;
 });
