@@ -19,14 +19,21 @@ class BillingService:
         }
 
     def handle_webhook(self, event_id: str, event: Dict[str, Any]) -> None:
+        print(f"🎯 BillingService: Processing webhook event_id={event_id}")
+        print(f"🎯 BillingService: Event data: {event}")
+        
         # idempotency
         if not webhook_repo.record_event(self.db, event_id):
+            print(f"🎯 BillingService: Event {event_id} already processed, skipping")
             return
 
         meta = event.get("meta", {})
         etype = meta.get("event_name", "")
         data = event.get("data", {})
         attrs = data.get("attributes", {})
+        
+        print(f"🎯 BillingService: Event type: {etype}")
+        print(f"🎯 BillingService: Attributes: {attrs}")
 
         # identify user from custom metadata or email
         user_id = None
@@ -45,7 +52,24 @@ class BillingService:
         email = attrs.get("user_email") or attrs.get("email")
         user_repo.get_or_create_user(self.db, user_id, email=email)
 
-        if etype in {"subscription_created", "subscription_updated", "subscription_resumed", "subscription_unpaused", "subscription_plan_changed"}:
+        print(f"🎯 BillingService: Checking event type '{etype}' against subscription events")
+        
+        # Check if this is a subscription-related event or if it contains subscription data
+        is_subscription_event = etype in {
+            "subscription_created", "subscription_updated", "subscription_resumed", 
+            "subscription_unpaused", "subscription_plan_changed", "order_created", 
+            "order_updated", "subscription_payment_success", "subscription_payment_recovered"
+        }
+        
+        # Also check if the event contains subscription data even if event type doesn't match
+        has_subscription_data = (
+            attrs.get("variant_id") is not None or 
+            attrs.get("checkout_data", {}).get("custom", {}).get("user_id") is not None
+        )
+        
+        print(f"🎯 BillingService: is_subscription_event={is_subscription_event}, has_subscription_data={has_subscription_data}")
+        
+        if is_subscription_event or has_subscription_data:
             # Get plan from custom data first, then map variant_id to plan name
             plan = custom.get("plan_id")
             if not plan:
@@ -130,6 +154,9 @@ class BillingService:
                     amount=amount,
                     currency=currency,
                 )
+        else:
+            print(f"🎯 BillingService: Unhandled event type '{etype}' for user {user_id}")
+            print(f"🎯 BillingService: Event data: {event}")
     
     def _map_variant_id_to_plan(self, variant_id: str) -> str:
         """Map Lemon Squeezy variant_id to internal plan name"""
