@@ -60,13 +60,24 @@ class BillingService:
         checkout_data = attrs.get("checkout_data", {})
         custom = checkout_data.get("custom", {})
         user_id = custom.get("user_id")
+        
+        # If no user_id from custom data, try to get it from meta custom_data
+        if not user_id:
+            meta_custom = meta.get("custom_data", {})
+            user_id = meta_custom.get("user_id")
+        
+        # Only fallback to email parsing if no user_id found in custom data
         if not user_id:
             email = attrs.get("user_email") or attrs.get("email")
             if email and "@" in email:
                 user_id = email.split("@")[0]
+                print(f"⚠️  Using email-derived user_id: {user_id} (fallback)")
 
         if not user_id:
+            print("❌ No user_id found in webhook data")
             return
+            
+        print(f"✅ Using user_id: {user_id}")
 
         # ensure user exists
         email = attrs.get("user_email") or attrs.get("email")
@@ -89,7 +100,38 @@ class BillingService:
         
         print(f"🎯 BillingService: is_subscription_event={is_subscription_event}, has_subscription_data={has_subscription_data}")
         
-        if is_subscription_event or has_subscription_data:
+        # Handle specific payment events first (before general subscription events)
+        if etype in {"subscription_payment_success", "subscription_payment_recovered"}:
+            # Handle successful payment - ensure subscription is active
+            print(f"🎯 Processing payment success event for user {user_id}")
+            
+            # Try to get plan from existing subscription first
+            sub = subscription_repo.get_by_user(self.db, user_id)
+            if sub and sub.plan != "free":
+                plan = sub.plan
+                print(f"🔧 Payment success: Using existing plan {plan}")
+            else:
+                # Try to get variant_id from subscription_id in the webhook data
+                subscription_id = attrs.get("subscription_id")
+                if subscription_id:
+                    print(f"🔧 Payment success: Found subscription_id {subscription_id}, assuming pro plan for successful payment")
+                    # For successful payments, assume pro plan
+                    plan = "pro"
+                else:
+                    plan = "free"
+                    print(f"⚠️  Payment success: No subscription_id found, defaulting to free")
+            
+            # Update subscription with correct plan
+            self._update_subscription_tables(
+                user_id=user_id,
+                plan=plan,
+                status=SubscriptionStatus.active,
+                current_period_end=attrs.get("renews_at") or attrs.get("ends_at"),
+                customer_id=attrs.get("customer_id") or attrs.get("user_email"),
+            )
+            print(f"✅ Updated subscription for user {user_id}: plan={plan}, status=active")
+            self.db.commit()
+        elif is_subscription_event or has_subscription_data:
             # Get plan from custom data first, then map variant_id to plan name
             plan = custom.get("plan_id")
             if not plan:
@@ -151,41 +193,6 @@ class BillingService:
         elif etype in {"subscription_payment_failed"}:
             # Handle failed payment - could pause subscription or send notification
             print(f"🎯 BillingService: Subscription payment failed for user {user_id}")
-        elif etype in {"subscription_payment_success", "subscription_payment_recovered"}:
-            # Handle successful payment - ensure subscription is active
-            # For payment success events, we need to get the plan from the subscription data
-            # Check if this event contains subscription information
-            if has_subscription_data:
-                # Get plan from variant_id if available
-                variant_id = attrs.get("variant_id")
-                if variant_id:
-                    plan = self._map_variant_id_to_plan(variant_id)
-                    print(f"🔧 Payment success: Mapped variant_id {variant_id} to plan: {plan}")
-                else:
-                    # Try to get plan from existing subscription
-                    sub = subscription_repo.get_by_user(self.db, user_id)
-                    if sub and sub.plan != "free":
-                        plan = sub.plan
-                        print(f"🔧 Payment success: Using existing plan {plan}")
-                    else:
-                        plan = "free"
-                        print(f"⚠️  Payment success: No variant_id or existing plan, defaulting to free")
-                
-                # Update subscription with correct plan
-                self._update_subscription_tables(
-                    user_id=user_id,
-                    plan=plan,
-                    status=SubscriptionStatus.active,
-                    current_period_end=attrs.get("renews_at") or attrs.get("ends_at"),
-                    customer_id=attrs.get("customer_id") or attrs.get("user_email"),
-                )
-                print(f"✅ Updated subscription for user {user_id}: plan={plan}, status=active")
-                self.db.commit()
-            else:
-                # Fallback: just ensure existing subscription is active
-                sub = subscription_repo.get_by_user(self.db, user_id)
-                if sub:
-                    subscription_repo.set_status(self.db, sub.id, SubscriptionStatus.active)
         elif etype in {"subscription_payment_refunded"}:
             # Handle refunded payment - could downgrade subscription
             print(f"🎯 BillingService: Subscription payment refunded for user {user_id}")
@@ -222,6 +229,11 @@ class BillingService:
     def _update_subscription_tables(self, user_id: str, plan: str, status, current_period_end, customer_id: str = None):
         """Update both Subscription and UserSubscription tables for consistency"""
         try:
+            # Ensure user exists in the users table first (for foreign key constraint)
+            email = customer_id if customer_id and isinstance(customer_id, str) and "@" in customer_id else None
+            user_repo.get_or_create_user(self.db, user_id, email=email)
+            print(f"✅ Ensured user {user_id} exists in users table")
+            
             # Update the main Subscription table (used by billing service)
             subscription_repo.upsert_subscription(
                 self.db,
