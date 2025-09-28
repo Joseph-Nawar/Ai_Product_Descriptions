@@ -23,7 +23,8 @@ async def get_authed_user_db(
     try:
         # Test database connection first
         logger.info(f"🔍 Testing database connection...")
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         logger.info(f"✅ Database connection successful")
         
         user = user_repo.get_or_create_user(db, uid, email=email)

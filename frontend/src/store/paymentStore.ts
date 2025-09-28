@@ -378,7 +378,7 @@ export const usePaymentStore = create<PaymentState>()(
           if (wsState.connected || wsState.reconnecting) return;
 
           try {
-            const wsUrl = import.meta.env.VITE_WS_URL || `ws://localhost:8000/ws/payments`;
+            const wsUrl = import.meta.env.VITE_WS_URL || `wss://ai-product-descriptions.onrender.com/ws/payments`;
             const ws = new WebSocket(wsUrl);
             
             set(state => ({

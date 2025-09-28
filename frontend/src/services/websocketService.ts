@@ -43,7 +43,7 @@ class PaymentWebSocketService implements WebSocketService {
     }
 
     try {
-      const wsUrl = import.meta.env.VITE_WS_URL || `ws://localhost:8000/ws/payments`;
+      const wsUrl = import.meta.env.VITE_WS_URL || `wss://ai-product-descriptions.onrender.com/ws/payments`;
       this.ws = new WebSocket(wsUrl);
 
       if (this.ws) {
