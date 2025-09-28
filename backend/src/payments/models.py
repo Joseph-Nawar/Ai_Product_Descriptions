@@ -43,8 +43,6 @@ class WebhookEventType(str, Enum):
     SUBSCRIPTION_PAYMENT_RECOVERED = "subscription_payment_recovered"
     SUBSCRIPTION_PAYMENT_REFUNDED = "subscription_payment_refunded"
     SUBSCRIPTION_PLAN_CHANGED = "subscription_plan_changed"
-    ORDER_CREATED = "order_created"
-    ORDER_REFUNDED = "order_refunded"
     PAYMENT_REFUNDED = "payment_refunded"
 
 

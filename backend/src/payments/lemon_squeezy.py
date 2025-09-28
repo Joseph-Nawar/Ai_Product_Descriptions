@@ -461,10 +461,6 @@ class LemonSqueezyService:
             return await self._handle_subscription_payment_refunded(data)
         elif event_type == WebhookEventType.SUBSCRIPTION_PLAN_CHANGED:
             return await self._handle_subscription_plan_changed(data)
-        elif event_type == WebhookEventType.ORDER_CREATED:
-            return await self._handle_order_created(data)
-        elif event_type == WebhookEventType.ORDER_REFUNDED:
-            return await self._handle_order_refunded(data)
         elif event_type == WebhookEventType.PAYMENT_REFUNDED:
             return await self._handle_payment_refunded(data)
         else:
@@ -830,120 +826,6 @@ class LemonSqueezyService:
         }
         return plan_credits_map.get(plan_id, 0)
     
-    async def _handle_order_created(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle order created event - this is the main event for successful payments"""
-        try:
-            logger.info("🎯 Processing order_created event")
-            
-            order_data = data.get("data", {})
-            attributes = order_data.get("attributes", {})
-            
-            # Extract order information
-            order_id = order_data.get("id")
-            variant_id = attributes.get("variant_id")
-            
-            # Get custom data - try multiple possible locations
-            user_id = None
-            
-            # Try checkout_data.custom.user_id first
-            checkout_data = attributes.get("checkout_data", {})
-            if checkout_data:
-                custom_data = checkout_data.get("custom", {})
-                user_id = custom_data.get("user_id")
-                logger.info(f"🔍 Found user_id in checkout_data.custom: {user_id}")
-            
-            # Try order_data.custom.user_id (alternative structure)
-            if not user_id:
-                order_custom = order_data.get("custom", {})
-                user_id = order_custom.get("user_id")
-                logger.info(f"🔍 Found user_id in order_data.custom: {user_id}")
-            
-            # Try attributes.custom.user_id (another alternative)
-            if not user_id:
-                attrs_custom = attributes.get("custom", {})
-                user_id = attrs_custom.get("user_id")
-                logger.info(f"🔍 Found user_id in attributes.custom: {user_id}")
-            
-            # Fallback: try to extract from email if available
-            if not user_id:
-                email = attributes.get("user_email") or attributes.get("email") or order_data.get("user_email")
-                if email and "@" in email:
-                    user_id = email.split("@")[0]
-                    logger.info(f"🔍 Extracted user_id from email: {user_id}")
-            
-            if not user_id:
-                logger.error(f"No user_id found in any location for order {order_id}")
-                logger.error(f"Available data keys: order_data={list(order_data.keys())}, attributes={list(attributes.keys())}")
-                return {"status": "error", "reason": "No user_id in custom data"}
-            
-            # Map variant_id to plan
-            plan_id = self._get_plan_from_variant_id(str(variant_id)) if variant_id else "pro"
-            
-            if not plan_id:
-                logger.error(f"Unknown variant_id: {variant_id}")
-                return {"status": "error", "reason": f"Unknown variant_id: {variant_id}"}
-            
-            logger.info(f"🎯 Order {order_id}: User {user_id}, Variant {variant_id} -> Plan {plan_id}")
-            
-            # For order_created events, treat as monthly subscription if it's a paid plan
-            if plan_id != "free":
-                # Calculate subscription period end (30 days from now)
-                from datetime import datetime, timezone, timedelta
-                period_end = datetime.now(timezone.utc) + timedelta(days=30)
-                
-                logger.info(f"🎯 Creating monthly subscription for user {user_id}, plan {plan_id}, period_end: {period_end}")
-                
-                # Update user subscription with monthly period
-                success = await self._update_user_subscription(
-                    user_id, 
-                    plan_id, 
-                    order_id, 
-                    status="active",
-                    period_end=period_end
-                )
-                
-                if success:
-                    logger.info(f"✅ Successfully created monthly subscription for user {user_id} to plan {plan_id}")
-                    return {"status": "success", "user_id": user_id, "plan": plan_id, "type": "monthly_subscription"}
-                else:
-                    logger.error(f"❌ Failed to create monthly subscription for user {user_id}")
-                    return {"status": "error", "reason": "Failed to create monthly subscription"}
-            else:
-                logger.info(f"🎯 Free plan order - no subscription update needed")
-                return {"status": "success", "user_id": user_id, "plan": plan_id, "type": "free_plan"}
-                
-        except Exception as e:
-            logger.error(f"Error handling order_created event: {str(e)}")
-            return {"status": "error", "reason": str(e)}
-    
-    async def _handle_order_refunded(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle order refunded event"""
-        try:
-            logger.info("🎯 Processing order_refunded event")
-            
-            order_data = data.get("data", {})
-            attributes = order_data.get("attributes", {})
-            
-            # Extract order information
-            order_id = order_data.get("id")
-            
-            # Get custom data
-            custom_data = attributes.get("checkout_data", {}).get("custom", {})
-            user_id = custom_data.get("user_id")
-            
-            if not user_id:
-                logger.error(f"No user_id found in custom data for refunded order {order_id}")
-                return {"status": "error", "reason": "No user_id in custom data"}
-            
-            # For refunds, we might want to downgrade the user or handle credits
-            logger.info(f"🎯 Order {order_id} refunded for user {user_id}")
-            
-            # For now, just log the refund - you might want to implement downgrade logic
-            return {"status": "success", "user_id": user_id, "action": "refund_logged"}
-                
-        except Exception as e:
-            logger.error(f"Error handling order_refunded event: {str(e)}")
-            return {"status": "error", "reason": str(e)}
     
     async def _handle_payment_refunded(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle payment refunded event"""
