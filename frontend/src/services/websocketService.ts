@@ -239,7 +239,9 @@ class PaymentWebSocketService implements WebSocketService {
 
     switch (type) {
       case 'pong':
+      case 'heartbeat':
         // Heartbeat response - no action needed
+        console.log('WebSocket heartbeat received:', message);
         break;
 
       case 'credit_update':

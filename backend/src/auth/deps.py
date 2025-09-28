@@ -21,12 +21,8 @@ async def get_authed_user_db(
     logger.info(f"🔍 UID: {uid}, Email: {email}")
     
     try:
-        # Test database connection first
-        logger.info(f"🔍 Testing database connection...")
-        from sqlalchemy import text
-        db.execute(text("SELECT 1"))
-        logger.info(f"✅ Database connection successful")
-        
+        # Remove database connection test to avoid session state issues
+        logger.info(f"🔍 Creating/retrieving user...")
         user = user_repo.get_or_create_user(db, uid, email=email)
         logger.info(f"🔍 User created/retrieved: {user}")
         return {"claims": claims, "user": user}
