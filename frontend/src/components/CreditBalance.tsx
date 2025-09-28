@@ -29,6 +29,17 @@ export function CreditBalance({
     try {
       setLoading(true);
       setError(null);
+      
+      // Ensure authentication token is available before making API calls
+      const { getIdToken } = await import('../auth/token');
+      const token = await getIdToken();
+      
+      if (!token) {
+        console.warn('No authentication token available, skipping API calls');
+        setError('Authentication required. Please sign in and try again.');
+        return;
+      }
+      
       const balanceData = await paymentApi.getCreditBalance();
       setBalance(balanceData);
     } catch (err) {
