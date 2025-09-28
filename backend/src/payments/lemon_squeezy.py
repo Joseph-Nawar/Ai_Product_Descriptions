@@ -718,7 +718,7 @@ class LemonSqueezyService:
         
         return plan_id
     
-    async def _update_user_subscription(self, user_id: str, plan_id: str, subscription_id: str = None, status: str = "active") -> bool:
+    async def _update_user_subscription(self, user_id: str, plan_id: str, subscription_id: str = None, status: str = "active", period_end = None) -> bool:
         """Update user subscription in database"""
         try:
             from ..database.deps import get_db_session
@@ -738,10 +738,11 @@ class LemonSqueezyService:
                     if subscription_id:
                         existing_subscription.lemon_squeezy_subscription_id = subscription_id
                     
-                    # Update period end (monthly subscription)
-                    from datetime import datetime, timezone, timedelta
-                    now = datetime.now(timezone.utc)
-                    period_end = now + timedelta(days=30)
+                    # Update period end (use provided period_end or default to 30 days)
+                    if period_end is None:
+                        from datetime import datetime, timezone, timedelta
+                        now = datetime.now(timezone.utc)
+                        period_end = now + timedelta(days=30)
                     existing_subscription.current_period_end = period_end
                     
                     session.flush()
@@ -754,7 +755,15 @@ class LemonSqueezyService:
                         plan_id=plan_id,
                         lemon_squeezy_subscription_id=subscription_id
                     )
-                    logger.info(f"Created new subscription for user {user_id} with plan {plan_id}")
+                    
+                    # Set period end for new subscription
+                    if period_end is None:
+                        from datetime import datetime, timezone, timedelta
+                        now = datetime.now(timezone.utc)
+                        period_end = now + timedelta(days=30)
+                    subscription.current_period_end = period_end
+                    
+                    logger.info(f"Created new subscription for user {user_id} with plan {plan_id}, period_end: {period_end}")
                 
                 # Ensure user has credits record and update it
                 user_credits = self.db_service.get_user_credits(user_id, session)
@@ -858,15 +867,32 @@ class LemonSqueezyService:
             
             logger.info(f"🎯 Order {order_id}: User {user_id}, Variant {variant_id} -> Plan {plan_id}")
             
-            # Update user subscription
-            success = await self._update_user_subscription(user_id, plan_id, order_id)
-            
-            if success:
-                logger.info(f"✅ Successfully updated subscription for user {user_id} to plan {plan_id}")
-                return {"status": "success", "user_id": user_id, "plan": plan_id}
+            # For order_created events, treat as monthly subscription if it's a paid plan
+            if plan_id != "free":
+                # Calculate subscription period end (30 days from now)
+                from datetime import datetime, timezone, timedelta
+                period_end = datetime.now(timezone.utc) + timedelta(days=30)
+                
+                logger.info(f"🎯 Creating monthly subscription for user {user_id}, plan {plan_id}, period_end: {period_end}")
+                
+                # Update user subscription with monthly period
+                success = await self._update_user_subscription(
+                    user_id, 
+                    plan_id, 
+                    order_id, 
+                    status="active",
+                    period_end=period_end
+                )
+                
+                if success:
+                    logger.info(f"✅ Successfully created monthly subscription for user {user_id} to plan {plan_id}")
+                    return {"status": "success", "user_id": user_id, "plan": plan_id, "type": "monthly_subscription"}
+                else:
+                    logger.error(f"❌ Failed to create monthly subscription for user {user_id}")
+                    return {"status": "error", "reason": "Failed to create monthly subscription"}
             else:
-                logger.error(f"❌ Failed to update subscription for user {user_id}")
-                return {"status": "error", "reason": "Failed to update subscription"}
+                logger.info(f"🎯 Free plan order - no subscription update needed")
+                return {"status": "success", "user_id": user_id, "plan": plan_id, "type": "free_plan"}
                 
         except Exception as e:
             logger.error(f"Error handling order_created event: {str(e)}")

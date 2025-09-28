@@ -116,15 +116,20 @@ class BillingService:
                     
                     if plan != "free":  # Only update if it's a paid plan
                         print(f"🎯 BillingService: Updating subscription for user {user_id} to plan {plan}")
+                        
+                        # For monthly subscription plans, set period end to 30 days from now
+                        from datetime import datetime, timezone, timedelta
+                        period_end = datetime.now(timezone.utc) + timedelta(days=30)
+                        
                         subscription_repo.upsert_subscription(
                             self.db,
                             user_id=user_id,
                             plan=plan,
                             status=SubscriptionStatus.active,
-                            current_period_end=None,  # One-time purchase, no recurring
+                            current_period_end=period_end,  # Monthly subscription
                             customer_id=provider_ref,
                         )
-                        print(f"✅ BillingService: Updated subscription for user {user_id}")
+                        print(f"✅ BillingService: Updated monthly subscription for user {user_id}, period_end: {period_end}")
                         
                         # Commit the transaction
                         self.db.commit()
