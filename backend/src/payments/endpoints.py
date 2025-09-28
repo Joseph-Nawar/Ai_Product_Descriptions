@@ -430,10 +430,17 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
         # Get subscription info
         subscription = lemon_squeezy.db_service.get_user_subscription(user_id, db)
         
-        # Add debugging information
+        # Add comprehensive debugging information
         logger.info(f"🔍 Subscription lookup for user {user_id}: found={subscription is not None}")
         if subscription:
             logger.info(f"🔍 Subscription details: plan_id={subscription.plan_id}, status={subscription.status}, is_active={subscription.is_active()}")
+            logger.info(f"🔍 Full subscription object: {subscription}")
+        else:
+            logger.warning(f"🔍 No subscription found for user {user_id}")
+            # Let's also check what's in the database
+            from src.models.payment_models import UserSubscription
+            all_subs = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
+            logger.info(f"🔍 All subscriptions for user {user_id}: {[{'id': sub.id, 'plan_id': sub.plan_id, 'status': sub.status} for sub in all_subs]}")
         
         if not subscription:
             # User has no subscription - return free tier details
@@ -469,10 +476,15 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
             "is_active": subscription.is_active()
         })
 
-        return {
+        response_data = {
             "success": True,
             "data": subscription_data,
         }
+        
+        # Log the response data for debugging
+        logger.info(f"🔍 Returning subscription data: {response_data}")
+        
+        return response_data
 
     except Exception as e:
         logger.error(f"Error getting user subscription: {str(e)}")
