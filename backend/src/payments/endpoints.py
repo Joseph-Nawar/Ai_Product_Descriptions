@@ -458,6 +458,14 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
             except Exception as e:
                 logger.error(f"🔍 Direct query error: {str(e)}")
             
+            # Let's also check if there's a database transaction issue
+            try:
+                # Check if we're in a transaction
+                logger.info(f"🔍 Database in transaction: {db.in_transaction()}")
+                logger.info(f"🔍 Database is active: {db.is_active}")
+            except Exception as e:
+                logger.error(f"🔍 Database transaction check error: {str(e)}")
+            
             # Let's also check if there's a database connection issue
             try:
                 from sqlalchemy import text
