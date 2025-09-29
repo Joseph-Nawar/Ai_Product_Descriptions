@@ -452,7 +452,8 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
             
             # Let's also check if there's a database connection issue
             try:
-                db.execute("SELECT 1")
+                from sqlalchemy import text
+                db.execute(text("SELECT 1"))
                 logger.info("🔍 Database connection is working")
             except Exception as e:
                 logger.error(f"🔍 Database connection error: {str(e)}")
