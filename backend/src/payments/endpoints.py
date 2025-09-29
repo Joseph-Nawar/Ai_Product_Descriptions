@@ -450,6 +450,14 @@ async def get_user_subscription(auth = Depends(get_authed_user_db), db: Session 
             query = db.query(UserSubscription).filter(UserSubscription.user_id == user_id)
             logger.info(f"🔍 Query SQL: {query}")
             
+            # Let's also check if there's a database session issue
+            try:
+                # Try to execute the query directly
+                result = db.execute(query)
+                logger.info(f"🔍 Direct query result: {result.fetchall()}")
+            except Exception as e:
+                logger.error(f"🔍 Direct query error: {str(e)}")
+            
             # Let's also check if there's a database connection issue
             try:
                 from sqlalchemy import text
